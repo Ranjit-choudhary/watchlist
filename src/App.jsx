@@ -3,6 +3,7 @@ import TopBar from "./components/TopBar";
 import AddTitle from "./components/AddTitle";
 import Grid from "./components/Grid";
 import TierList from "./components/TierList";
+import Settings from "./components/Settings";
 
 import useAuth from "./hooks/useAuth";
 
@@ -23,6 +24,8 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [pendingItem, setPendingItem] = useState(null);
   const [showTierModal, setShowTierModal] = useState(false);
+  const [viewMode, setViewMode] = useState("grid"); // "grid" or "list"
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -51,16 +54,37 @@ export default function App() {
       const details = await getDetails(result.media_type, result.id);
       console.log("TMDB details:", details);
 
+      // Extract last episode info for TV shows
+      let lastInfo = null;
+      let lastDate = null;
+      let status = "waiting";
+
+      if (result.media_type === "tv") {
+        const ep = details.last_episode_to_air;
+        if (ep) {
+          lastInfo = `S${ep.season_number} E${ep.episode_number}`;
+          lastDate = ep.air_date;
+          status = "waiting";
+        }
+      } else if (details.release_date) {
+        lastInfo = details.release_date;
+        lastDate = details.release_date;
+        status = "waiting";
+      }
+
       const draft = {
         title: result.title || result.name,
         tmdbId: result.id,
         type: result.media_type,
         poster: posterUrl(details.poster_path),
-        lastInfo: null,
-        lastDate: null,
-        status: "waiting",
+        lastInfo,
+        lastDate,
+        status,
         eagerness: 3,
         rating: details.vote_average || null,
+        overview: details.overview || null,
+        watchedSeason: null,
+        watchedEpisode: null,
         createdAt: Date.now()
       };
 
@@ -113,6 +137,9 @@ export default function App() {
   const updateEagerness = (id, value) =>
     updateWatch(user.uid, id, { eagerness: value });
 
+  const updateWatched = (id, watched) =>
+    updateWatch(user.uid, id, { ...watched, updatedAt: Date.now() });
+
   const confirmTierSelection = async eagerness => {
     if (!pendingItem) return;
     try {
@@ -137,6 +164,22 @@ export default function App() {
   };
 
   const deleteItem = id => removeWatch(user.uid, id);
+
+  // Get items with new unwatched episodes
+  const getUnwatchedItems = () => {
+    return items.filter(item => {
+      if (item.type !== "tv" || !item.lastInfo || !item.watchedSeason) return false;
+      // Parse lastInfo format: "S2 E5"
+      const match = item.lastInfo.match(/S(\d+)\s+E(\d+)/);
+      if (!match) return false;
+      const [, lastSeason] = match.map(Number);
+      // Show notification if latest season is beyond what user has watched
+      return lastSeason > item.watchedSeason;
+    });
+  };
+
+  const unwatchedItems = getUnwatchedItems();
+  const unwatchedCount = unwatchedItems.length;
 
   const visible = items.filter(i =>
     filter === "all" ? true : i.status === filter
@@ -167,9 +210,20 @@ export default function App() {
         user={user}
         onRefresh={refreshAll}
         refreshing={refreshing}
+        unwatchedCount={unwatchedCount}
+        unwatchedItems={unwatchedItems}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        onOpenSettings={() => setShowSettings(true)}
       />
       <AddTitle onSelect={addFromTMDB} />
-      <TierList items={sorted} onRate={updateEagerness} onDelete={deleteItem} />
+      <TierList 
+        items={sorted} 
+        onRate={updateEagerness} 
+        onDelete={deleteItem}
+        onUpdateWatched={updateWatched}
+        viewMode={viewMode}
+      />
 
       {showTierModal && pendingItem && (
         <div className="modal-backdrop">
@@ -251,6 +305,14 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <Settings
+          user={user}
+          onClose={() => setShowSettings(false)}
+        />
       )}
     </div>
   );

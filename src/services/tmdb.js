@@ -16,6 +16,18 @@ export async function getDetails(type, id) {
   return res.json();
 }
 
+export async function getVideos(type, id) {
+  const res = await fetch(`${BASE}/${type}/${id}/videos?api_key=${API_KEY}`);
+  const data = await res.json();
+  // Find the first trailer (preferably official)
+  const trailer = data.results?.find(
+    video => video.type === "Trailer" && video.site === "YouTube"
+  ) || data.results?.find(
+    video => video.site === "YouTube"
+  );
+  return trailer ? trailer.key : null;
+}
+
 export function posterUrl(path) {
   return path ? `https://image.tmdb.org/t/p/w500${path}` : null;
 }

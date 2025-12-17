@@ -9,21 +9,44 @@ const TIERS = [
   { value: 1, label: "🔥 Low Priority" }
 ];
 
-export default function TierList({ items, onRate, onDelete }) {
+export default function TierList({ items, onRate, onDelete, onUpdateWatched, viewMode = "grid" }) {
   const [dragged, setDragged] = useState(null);
 
+  // Check if item has new unwatched episodes
+  const hasNewUnwatched = (item) => {
+    if (item.type !== "tv" || !item.lastInfo || !item.watchedSeason) return false;
+    const match = item.lastInfo.match(/S(\d+)\s+E(\d+)/);
+    if (!match) return false;
+    const [, lastSeason] = match.map(Number);
+    return lastSeason > item.watchedSeason;
+  };
+
+  // Sort items: new unwatched first, then by updatedAt
+  const sortTierItems = (tierItems) => {
+    return [...tierItems].sort((a, b) => {
+      const aHasNew = hasNewUnwatched(a);
+      const bHasNew = hasNewUnwatched(b);
+      
+      // Items with new unwatched episodes come first
+      if (aHasNew && !bHasNew) return -1;
+      if (!aHasNew && bHasNew) return 1;
+      
+      // If both have new or both don't, sort by updatedAt (newest first)
+      return (b.updatedAt || 0) - (a.updatedAt || 0);
+    });
+  };
+
   return (
-    <div style={{ padding: "1rem" }}>
+    <div className="tier-list">
       {TIERS.map(tier => {
         const tierItems = items.filter(i => i.eagerness === tier.value);
-        if (!tierItems.length) return null;
+        const sortedTierItems = sortTierItems(tierItems);
+        if (!sortedTierItems.length) return null;
 
         return (
           <div
             key={tier.value}
             className="tier"
-            style={{ marginBottom: "2rem" }}
-
             /* Desktop drag */
             onDragOver={e => e.preventDefault()}
             onDrop={() => {
@@ -36,14 +59,18 @@ export default function TierList({ items, onRate, onDelete }) {
             /* Mobile support */
             onTouchMove={e => e.preventDefault()}
           >
-            <h2 style={{ marginBottom: "0.8rem" }}>
-              {tier.label}
-            </h2>
+            <div className="tier-header">
+              <h2 className="tier-title">{tier.label}</h2>
+              <span className="tier-chip glass-chip">Tier {tier.value}</span>
+            </div>
 
             <Grid
-              items={tierItems}
+              items={sortedTierItems}
               onDelete={onDelete}
               onDrag={setDragged}
+              onRate={onRate}
+              onUpdateWatched={onUpdateWatched}
+              viewMode={viewMode}
             />
           </div>
         );
