@@ -1,23 +1,34 @@
-import React from "react";
-import FlameRating from "./FlameRating";
+import React, { useRef } from "react";
 
-export default function WatchCard({ item, onRate, onDelete }) {
-  const pain =
-    item.lastDate
-      ? Math.floor(
-          ((Date.now() - new Date(item.lastDate)) /
-            (1000 * 60 * 60 * 24)) *
-            item.eagerness
-        )
-      : 0;
-
+export default function WatchCard({ item, onDelete, onDrag }) {
   return (
-    <div style={{
-      background: "#161b22",
-      borderRadius: "10px",
-      overflow: "hidden",
-      position: "relative"
-    }}>
+    <div
+  draggable
+  onDragStart={() => onDrag(item)}
+
+  onTouchStart={() => {
+    timerRef.current = setTimeout(() => {
+      onDrag(item);
+    }, 300); // long press
+  }}
+
+  onTouchEnd={() => {
+    clearTimeout(timerRef.current);
+  }}
+
+  onTouchMove={() => {
+    clearTimeout(timerRef.current);
+  }}
+
+  className={`card ${item.status === "new" ? "new" : ""}`}
+  style={{
+    background: "#161b22",
+    borderRadius: "10px",
+    overflow: "hidden",
+    position: "relative"
+  }}
+>
+
       <button
         onClick={() => onDelete(item.id)}
         style={{
@@ -28,47 +39,42 @@ export default function WatchCard({ item, onRate, onDelete }) {
           border: "none",
           color: "#fff",
           borderRadius: "50%",
-          width: "28px",
-          height: "28px",
+          width: "32px",
+          height: "32px",
           cursor: "pointer"
         }}
       >
         ✕
       </button>
 
-      <div style={{
-        height: "260px",
-        background: item.poster
-          ? `url(${item.poster}) center/cover`
-          : "#0d1117"
-      }} />
+      <div
+        style={{
+          height: "240px",
+          background: item.poster
+            ? `url(${item.poster}) center/cover`
+            : "#0d1117"
+        }}
+      />
 
       <div style={{ padding: "0.8rem" }}>
-        <h3>{item.title}</h3>
-
-        <FlameRating
-          value={item.eagerness}
-          onChange={v => onRate(item.id, v)}
-        />
-
-        <p style={{ fontSize: "0.8rem", color: "#f97316" }}>
-          Pain: {pain}
-        </p>
+        <h3 style={{ margin: 0 }}>{item.title}</h3>
 
         <p style={{ color: "#8b949e", fontSize: "0.85rem" }}>
           {item.lastInfo}
         </p>
 
-        <span style={{
-          display: "inline-block",
-          marginTop: "0.4rem",
-          padding: "0.2rem 0.5rem",
-          borderRadius: "6px",
-          background: "#30363d",
-          fontSize: "0.75rem"
-        }}>
-          {item.status}
-        </span>
+        {item.status === "new" && (
+          <span style={{
+            display: "inline-block",
+            marginTop: "0.4rem",
+            padding: "0.2rem 0.5rem",
+            borderRadius: "6px",
+            background: "#238636",
+            fontSize: "0.75rem"
+          }}>
+            NEW
+          </span>
+        )}
       </div>
     </div>
   );
