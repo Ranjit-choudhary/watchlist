@@ -1,61 +1,62 @@
-import React, { useState } from "react";
-import { searchTMDB } from "../services/tmdb";
+import React, { useEffect, useState } from "react";
+import { searchTMDB, posterUrl } from "../services/tmdb";
 
 export default function AddTitle({ onSelect }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
 
-  const search = async () => {
-    if (!q.trim()) return;
-    const r = await searchTMDB(q);
-    setResults(r.slice(0, 5));
-  };
+  useEffect(() => {
+    if (!q.trim()) {
+      setResults([]);
+      return;
+    }
+
+    const t = setTimeout(async () => {
+      const r = await searchTMDB(q);
+      setResults(r.slice(0, 6));
+    }, 400); // debounce
+
+    return () => clearTimeout(t);
+  }, [q]);
 
   return (
-    <div style={{ padding: "1rem" }}>
+    <div className="search-container">
       <input
         value={q}
         onChange={e => setQ(e.target.value)}
-        placeholder="Search movie or series"
-        style={{
-          padding: "0.6rem",
-          width: "60%",
-          background: "#161b22",
-          color: "#fff",
-          border: "1px solid #30363d"
-        }}
+        placeholder="Search movie or series..."
+        className="search-input"
       />
-      <button
-        onClick={search}
-        style={{
-          marginLeft: "0.5rem",
-          padding: "0.6rem",
-          background: "#f97316",
-          border: "none"
-        }}
-      >
-        Search
-      </button>
 
-      {results.map(r => (
-        <div
-          key={r.id}
-          onClick={() => {
-            onSelect(r);
-            setResults([]);
-            setQ("");
-          }}
-          style={{
-            cursor: "pointer",
-            marginTop: "0.5rem",
-            padding: "0.5rem",
-            background: "#0d1117",
-            border: "1px solid #30363d"
-          }}
-        >
-          {r.title || r.name} ({r.media_type})
+      {results.length > 0 && (
+        <div className="search-dropdown">
+          <div className="search-results glass-panel">
+          {results.map(r => (
+            <div
+              key={r.id}
+              onClick={() => {
+                onSelect(r);
+                setQ("");
+                setResults([]);
+              }}
+              className="search-result-row"
+            >
+              <img
+                src={posterUrl(r.poster_path)}
+                alt=""
+                style={{ width: "40px", borderRadius: "4px" }}
+              />
+              <div>
+                <div>{r.title || r.name}</div>
+                <small className="search-result-meta">
+                  {r.media_type.toUpperCase()}
+                </small>
+              </div>
+            </div>
+          ))}
+          </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }
