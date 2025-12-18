@@ -25,3 +25,4 @@ export async function updateUserSettings(uid, settings) {
   }, { merge: true });
 }
 
+

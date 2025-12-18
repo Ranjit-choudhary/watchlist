@@ -30,15 +30,22 @@ export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, vie
 
   const isGlowing = shouldGlow();
 
-  // Get max season from lastInfo or default to 10
+  // Get max season from totalSeasons, details, or lastInfo as fallback
   const getMaxSeason = () => {
+    if (item.totalSeasons) {
+      return item.totalSeasons;
+    }
+    if (details?.number_of_seasons) {
+      return details.number_of_seasons;
+    }
     if (item.lastInfo) {
       const match = item.lastInfo.match(/S(\d+)/);
       if (match) {
-        return Math.max(parseInt(match[1]) || 10, 10);
+        const fromInfo = parseInt(match[1]) || 1;
+        return Math.max(fromInfo, 1);
       }
     }
-    return 10;
+    return 1;
   };
 
   const maxSeason = getMaxSeason();

@@ -14,7 +14,7 @@ import {
   removeWatch
 } from "./services/watchlist";
 
-import { getDetails, posterUrl } from "./services/tmdb";
+import { getDetails, getVideos, posterUrl } from "./services/tmdb";
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -51,13 +51,18 @@ export default function App() {
     try {
       console.log("TMDB result:", result);
   
-      const details = await getDetails(result.media_type, result.id);
+      const [details, trailerKey] = await Promise.all([
+        getDetails(result.media_type, result.id),
+        getVideos(result.media_type, result.id)
+      ]);
       console.log("TMDB details:", details);
 
       // Extract last episode info for TV shows
       let lastInfo = null;
       let lastDate = null;
       let status = "waiting";
+      let totalSeasons = null;
+      let totalEpisodes = null;
 
       if (result.media_type === "tv") {
         const ep = details.last_episode_to_air;
@@ -66,6 +71,8 @@ export default function App() {
           lastDate = ep.air_date;
           status = "waiting";
         }
+        totalSeasons = details.number_of_seasons || null;
+        totalEpisodes = details.number_of_episodes || null;
       } else if (details.release_date) {
         lastInfo = details.release_date;
         lastDate = details.release_date;
@@ -83,6 +90,9 @@ export default function App() {
         eagerness: 3,
         rating: details.vote_average || null,
         overview: details.overview || null,
+        trailerKey: trailerKey || null,
+        totalSeasons,
+        totalEpisodes,
         watchedSeason: null,
         watchedEpisode: null,
         createdAt: Date.now()
@@ -229,7 +239,7 @@ export default function App() {
         <div className="modal-backdrop">
           <div className="modal-panel glass-panel">
             <div className="modal-header">
-              <div className="modal-title">Choose a tier</div>
+              <div className="modal-title">Add to watchlist</div>
               <button
                 className="btn btn-ghost"
                 type="button"
@@ -242,56 +252,174 @@ export default function App() {
               </button>
             </div>
 
-            <div style={{ display: "flex", gap: "0.75rem", marginBottom: "0.75rem" }}>
+            {/* Poster + basic meta */}
+            <div style={{ display: "flex", gap: "0.9rem", marginBottom: "0.75rem" }}>
               {pendingItem.poster && (
                 <div
                   style={{
-                    width: "80px",
-                    height: "110px",
+                    width: "90px",
+                    height: "130px",
                     borderRadius: "10px",
                     backgroundImage: `url(${pendingItem.poster})`,
                     backgroundSize: "cover",
-                    backgroundPosition: "center"
+                    backgroundPosition: "center",
+                    flexShrink: 0
                   }}
                 />
               )}
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: "0.15rem" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, marginBottom: "0.15rem", fontSize: "1rem" }}>
                   {pendingItem.title}
                 </div>
-                <div style={{ fontSize: "0.8rem", opacity: 0.8, marginBottom: "0.2rem" }}>
+                <div style={{ fontSize: "0.8rem", opacity: 0.8, marginBottom: "0.3rem" }}>
                   {pendingItem.type?.toUpperCase()}
                 </div>
                 {pendingItem.rating && (
                   <span className="card-rating-pill">
-                    IMDb {pendingItem.rating.toFixed(1)}
+                    ⭐ {pendingItem.rating.toFixed(1)}
                   </span>
+                )}
+                {(pendingItem.totalSeasons || pendingItem.totalEpisodes) && (
+                  <div
+                    style={{
+                      marginTop: "0.35rem",
+                      fontSize: "0.8rem",
+                      color: "#9ca3af",
+                      display: "flex",
+                      gap: "0.5rem",
+                      flexWrap: "wrap"
+                    }}
+                  >
+                    {pendingItem.totalSeasons && (
+                      <span>{pendingItem.totalSeasons} season{pendingItem.totalSeasons !== 1 ? "s" : ""}</span>
+                    )}
+                    {pendingItem.totalEpisodes && (
+                      <span>• {pendingItem.totalEpisodes} episodes</span>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
 
-            <div className="modal-tier-grid">
-              {[
-                { value: 5, label: "🔥🔥🔥🔥🔥 Can’t Wait" },
-                { value: 4, label: "🔥🔥🔥🔥 Very Eager" },
-                { value: 3, label: "🔥🔥🔥 Interested" },
-                { value: 2, label: "🔥🔥 Casual" },
-                { value: 1, label: "🔥 Low Priority" }
-              ].map(tier => (
-                <button
-                  key={tier.value}
-                  type="button"
-                  className="modal-tier-button"
-                  onClick={() => confirmTierSelection(tier.value)}
+            {/* Summary */}
+            {pendingItem.overview && (
+              <div style={{ marginBottom: "0.75rem" }}>
+                <div
+                  style={{
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    marginBottom: "0.25rem"
+                  }}
                 >
-                  <div style={{ fontSize: "0.85rem", marginBottom: "0.1rem" }}>
-                    {tier.label}
-                  </div>
-                  <div style={{ fontSize: "0.7rem", opacity: 0.75 }}>
-                    Place into this tier
-                  </div>
+                  Summary
+                </div>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "0.85rem",
+                    lineHeight: 1.5,
+                    color: "#9ca3af"
+                  }}
+                >
+                  {pendingItem.overview}
+                </p>
+              </div>
+            )}
+
+            {/* Trailer button */}
+            {pendingItem.trailerKey && (
+              <div style={{ marginBottom: "0.9rem" }}>
+                <button
+                  type="button"
+                  className="btn btn-youtube"
+                  onClick={() =>
+                    window.open(
+                      `https://www.youtube.com/watch?v=${pendingItem.trailerKey}`,
+                      "_blank"
+                    )
+                  }
+                >
+                  <span className="youtube-icon">▶</span>
+                  Watch Trailer
                 </button>
-              ))}
+              </div>
+            )}
+
+            {/* Watched season (optional) */}
+            <div style={{ marginBottom: "0.9rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "0.35rem",
+                  fontSize: "0.85rem",
+                  opacity: 0.9
+                }}
+              >
+                Watched up to season (optional)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max={pendingItem.totalSeasons || undefined}
+                placeholder="e.g. 2"
+                defaultValue={pendingItem.watchedSeason || ""}
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  background: "rgba(15,23,42,0.9)",
+                  border: "1px solid rgba(148,163,184,0.4)",
+                  borderRadius: "6px",
+                  color: "#fff",
+                  fontSize: "0.9rem"
+                }}
+                onChange={e => {
+                  let season = parseInt(e.target.value, 10) || null;
+                  if (pendingItem.totalSeasons && season && season > pendingItem.totalSeasons) {
+                    season = pendingItem.totalSeasons;
+                  }
+                  setPendingItem(prev => ({
+                    ...prev,
+                    watchedSeason: season,
+                    watchedEpisode: season ? 0 : null
+                  }));
+                }}
+              />
+            </div>
+
+            {/* Tier selection */}
+            <div style={{ marginTop: "0.5rem" }}>
+              <div
+                style={{
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  marginBottom: "0.35rem"
+                }}
+              >
+                Choose a tier
+              </div>
+              <div className="modal-tier-grid">
+                {[
+                  { value: 5, label: "🔥🔥🔥🔥🔥 Can’t Wait" },
+                  { value: 4, label: "🔥🔥🔥🔥 Very Eager" },
+                  { value: 3, label: "🔥🔥🔥 Interested" },
+                  { value: 2, label: "🔥🔥 Casual" },
+                  { value: 1, label: "🔥 Low Priority" }
+                ].map(tier => (
+                  <button
+                    key={tier.value}
+                    type="button"
+                    className="modal-tier-button"
+                    onClick={() => confirmTierSelection(tier.value)}
+                  >
+                    <div style={{ fontSize: "0.85rem", marginBottom: "0.1rem" }}>
+                      {tier.label}
+                    </div>
+                    <div style={{ fontSize: "0.7rem", opacity: 0.75 }}>
+                      Place into this tier
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="modal-footer">

@@ -744,6 +744,10 @@ body {
   max-width: 480px;
   background: rgba(20, 20, 20, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem 1.3rem;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .modal-header {
