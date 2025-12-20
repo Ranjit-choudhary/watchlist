@@ -153,9 +153,9 @@ export default function LandingPage() {
       <footer className="landing-footer">
         <p>Made with ❤️ for movie & TV enthusiasts</p>
         <div className="footer-links">
-          <a href="https://github.com" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href="https://github.com/Ranjit-choudhary" target="_blank" rel="noopener noreferrer">GitHub</a>
           <span>•</span>
-          <a href="mailto:support@watchlist.app">Contact</a>
+          <a href="mailto:ranjit.choudhary0123@gmail.com">Contact</a>
         </div>
       </footer>
     </div>

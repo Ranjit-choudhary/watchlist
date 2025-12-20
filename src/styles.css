@@ -202,40 +202,14 @@ body {
   width: 100%;
 }
 
-.card-list {
-  display: flex;
-  flex-direction: row;
-  height: auto;
-  min-height: 100px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
+
 
 .card-list:hover {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.1);
 }
 
-.card-list .card-poster {
-  width: 70px;
-  height: 100px;
-  flex-shrink: 0;
-  border-radius: 6px 0 0 6px;
-}
 
-.card-list .card-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 0.75rem 1rem;
-  gap: 0.25rem;
-}
-
-.card-list .card-title {
-  font-size: 0.95rem;
-  margin-bottom: 0;
-}
 
 .card-list .card-subline {
   margin: 0;
@@ -251,19 +225,130 @@ body {
   font-size: 0.75rem;
 }
 
+/* =========================================
+   LIST VIEW FIXES
+   ========================================= */
+
+.card-list {
+  display: flex;
+  flex-direction: row;
+  height: auto;
+  min-height: 110px; /* Slightly taller for better spacing */
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative; /* For button positioning */
+}
+
+/* 1. Adjust Poster */
+.card-list .card-poster {
+  width: 80px;
+  height: auto; /* Let it fill height */
+  min-height: 100%;
+  flex-shrink: 0;
+  border-radius: 6px 0 0 6px;
+  background-position: center;
+  background-size: cover;
+}
+
+/* 2. Hide Floating Badges in List View to clean up UI */
+.card-list .card-poster .card-badge,
+.card-list .card-poster .rating-badge,
+.card-list .card-poster .card-tag-new {
+  display: none; 
+}
+
+/* 3. Content Layout */
+.card-list .card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.75rem 3.5rem 0.75rem 1rem; /* Right padding makes room for buttons */
+  gap: 0.25rem;
+  background: transparent;
+}
+
+.card-list .card-title {
+  font-size: 1rem;
+  margin-bottom: 0.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* 4. Re-add Metadata (Rating/New) as inline items */
+.card-list .card-title::after {
+  /* This injects the rating if you want it next to title, 
+     but better to use the meta line below */
+  content: "";
+}
+
+.card-list-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-top: 0.25rem;
+}
+
+/* Inline Rating Pill for List View */
+.list-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+/* Inline New Badge for List View */
+.list-tag-new {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  background: rgba(34, 197, 94, 0.2);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #4ade80;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* 5. Fix Action Buttons (Delete / Info) */
 .card-list .card-delete-btn {
-  top: 6px;
-  right: 6px;
-  width: 26px;
-  height: 26px;
+  opacity: 1; /* Always visible in list view */
+  top: 50%;
+  right: 1rem;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  background: rgba(220, 38, 38, 0.2);
+  border: 1px solid rgba(220, 38, 38, 0.5);
+  color: #f87171;
+}
+
+.card-list .card-delete-btn:hover {
+  background: #dc2626;
+  color: white;
 }
 
 .card-list .card-info-btn {
-  top: 6px;
-  right: 36px;
-  width: 26px;
-  height: 26px;
+  opacity: 1; /* Always visible in list view */
+  top: 50%;
+  right: 3.5rem; /* Positioned to the left of delete */
+  transform: translateY(-50%) scale(1) !important; /* Reset hover scale transform conflict */
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e5e7eb;
 }
+
+.card-list .card-info-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-50%) scale(1) !important;
+}
+
 
 /* Card internals */
 .card-delete-btn {
@@ -765,13 +850,8 @@ body {
 }
 
 .rating-badge {
-  color: #fbbf24;
-  font-weight: 700;
-  background: rgba(0, 0, 0, 0.75) !important;
-  border: 1px solid rgba(251, 191, 36, 0.4) !important;
-  z-index: 5;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  left: 10px !important; 
+  right: auto !important; /* Override inline style or previous CSS */
 }
 
 .chip {
@@ -1038,11 +1118,19 @@ body {
   }
 
   .topbar {
-    padding: 0.75rem 1rem;
-    flex-direction: column;
-    gap: 0.75rem;
-    align-items: stretch;
-  }
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
 
   .topbar-left {
     gap: 0.75rem;
@@ -1050,7 +1138,7 @@ body {
   }
 
   .topbar-logo {
-    flex: 1;
+    flex-shrink: 0;
   }
 
   .topbar-logo-text {
@@ -1060,7 +1148,11 @@ body {
   .topbar-logo-icon {
     font-size: 1.3rem;
   }
-
+.topbar-search-section {
+  flex: 1;
+  max-width: 500px;
+  position: relative;
+}
   .topbar-search {
     order: 3;
     width: 100%;
@@ -1071,7 +1163,12 @@ body {
     font-size: 0.85rem;
     padding: 0.6rem 1rem 0.6rem 2.5rem;
   }
-
+.topbar-actions-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
   .topbar-actions {
     gap: 0.5rem;
     order: 2;
@@ -1210,13 +1307,16 @@ body {
   color: #e5e7eb;
 }
 
-/* ---------- Topbar ---------- */
+/* =========================================
+   TOPBAR - UNIFIED STYLES
+   ========================================= */
+
 .topbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1.5rem;
-  margin-bottom: 1.5rem;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 0.75rem 2rem;
   background: rgba(0, 0, 0, 0.4);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(20px);
@@ -1224,25 +1324,24 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
+  height: 72px; /* Fixed height for desktop to prevent jumping */
 }
 
-.topbar-left {
+/* 1. Logo Section */
+.topbar-logo-section {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  flex: 1;
 }
 
 .topbar-logo {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex-shrink: 0;
 }
 
 .topbar-logo-icon {
   font-size: 1.5rem;
-  line-height: 1;
 }
 
 .topbar-logo-text {
@@ -1252,14 +1351,36 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: -0.03em;
 }
 
-/* Search Bar */
-.topbar-search {
-  position: relative;
+/* 2. Search Section (Desktop: Center, Flexible) */
+.topbar-search-section {
   flex: 1;
   max-width: 500px;
+  position: relative;
+  margin: 0 1rem;
+}
+
+.search-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.topbar-search-input {
+  width: 100%;
+  padding: 0.65rem 1rem 0.65rem 2.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.9rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.topbar-search-input:focus {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .topbar-search-icon {
@@ -1269,7 +1390,213 @@ body {
   transform: translateY(-50%);
   color: rgba(255, 255, 255, 0.5);
   pointer-events: none;
-  z-index: 1;
+}
+
+/* 3. Actions Section (Desktop: Right) */
+.topbar-actions-section {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.topbar-icon-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.topbar-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0 0.25rem;
+}
+
+.topbar-profile-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.topbar-profile-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #333;
+}
+
+.topbar-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Search Dropdown Results */
+.topbar-search-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  right: 0;
+  background: rgba(20, 20, 20, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8);
+  z-index: 1000;
+}
+
+.topbar-search-result {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.topbar-search-result:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.topbar-search-poster {
+  width: 40px;
+  height: 60px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.topbar-search-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.topbar-search-title {
+  font-size: 0.9rem;
+  color: #fff;
+  font-weight: 500;
+}
+
+.topbar-search-meta {
+  font-size: 0.75rem;
+  color: #8b949e;
+}
+
+/* =========================================
+   MOBILE RESPONSIVE OVERRIDES
+   ========================================= */
+@media (max-width: 600px) {
+  
+  /* Layout: Wrap Items */
+  .topbar {
+    height: auto; /* Allow height to grow on mobile */
+    flex-wrap: wrap; 
+    padding: 0.75rem 1rem;
+    gap: 0.75rem 0; /* Vertical gap for the search bar */
+  }
+
+  /* Order: Logo(1), Actions(2), Search(3) */
+  .topbar-logo-section {
+    order: 1;
+    flex: 1; 
+  }
+
+  .topbar-actions-section {
+    order: 2;
+    flex-shrink: 0;
+  }
+
+  .topbar-search-section {
+    order: 3;
+    width: 100%; /* Force full width on new line */
+    max-width: 100%;
+    margin: 0.25rem 0 0 0; /* Reset desktop margins */
+  }
+
+  /* Fix Search Dropdown Result Window on Mobile */
+  .topbar-search-dropdown {
+    position: fixed; 
+    left: 1rem;
+    right: 1rem;
+    top: 140px;
+    width: auto;
+    max-height: 60vh;
+    overflow-y: auto;
+    border: 1px solid rgba(255,255,255,0.2);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.9);
+  }
+
+  /* Fix Notification Dropdown Overflow */
+  .notification-dropdown {
+    position: fixed;
+    top: 70px;
+    left: 1rem;
+    right: 1rem;
+    width: auto;
+    max-width: none;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  /* Fix Profile Dropdown Overflow */
+  .profile-dropdown {
+  position: absolute;
+  top: calc(100% + 0.8rem); /* Slightly more spacing */
+  right: 0;
+  width: 200px;
+  /* FORCE Dark Background: Matches your site theme (#1a1a1a or #141414) */
+  background-color: #141414 !important; 
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0.5rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+  .topbar-profile-name {
+    display: none;
+  }
+}
+.search-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.topbar-search-input {
+  width: 100%;
+  padding: 0.65rem 1rem 0.65rem 2.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.9rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+.topbar-search-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
 }
 
 .topbar-search-input {
@@ -1299,12 +1626,10 @@ body {
   left: 0;
   right: 0;
   background: rgba(20, 20, 20, 0.98);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
   overflow: hidden;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8);
   z-index: 1000;
 }
 
@@ -1514,17 +1839,13 @@ body {
 .notification-dropdown {
   position: absolute;
   top: calc(100% + 0.75rem);
-  right: 0;
-  width: 340px;
-  max-height: 450px;
+  right: -10px;
+  width: 320px;
   background: rgba(20, 20, 20, 0.98);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8);
   z-index: 1000;
-  overflow: hidden;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
 }
 
 .notification-dropdown-header {
@@ -2100,4 +2421,219 @@ body {
     width: 100%;
     justify-content: center;
   }
-}\
+}
+.empty-state-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  text-align: center;
+  padding: 2rem;
+  color: #6b7280;
+  animation: fadeUp 0.6s ease;
+}
+
+.empty-state-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.3;
+}
+
+.empty-state-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #9ca3af;
+}
+
+.empty-state-subtext {
+  font-size: 0.9rem;
+  color: #9ca3af;
+  max-width: 300px;
+  line-height: 1.5;
+}
+.profile-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.1);
+  margin: 0.25rem 0;
+}
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: 180px;
+  background: rgba(20, 20, 20, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0.5rem;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8);
+  z-index: 1000;
+}
+.profile-header-mobile {
+  display: none; /* Hidden on desktop */
+}
+.profile-menu-item svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.5px;
+  /* Icon Color: RED ACCENT to match branding (#e50914) */
+  stroke: #e50914 !important; 
+  color: #e50914 !important;
+  transition: stroke 0.2s ease;
+}
+.profile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin-bottom: 2px;
+  
+  /* FORCE Transparent Background to remove default white button style */
+  background-color: transparent !important; 
+  background: transparent !important;
+  border: none;
+  
+  /* Text Color: Light Gray (Standard text) */
+  color: #e5e7eb !important; 
+  
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.profile-menu-item:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+  transform: translateX(4px); /* subtle movement */
+}
+
+.profile-menu-item.danger {
+  margin-top: 0.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0 0 6px 6px;
+  color: #ef4444 !important; /* Red text */
+}
+.profile-menu-item.danger svg {
+  stroke: #ef4444 !important;
+}
+.profile-menu-item.danger:hover {
+  background-color: rgba(220, 38, 38, 0.15) !important;
+  color: #ff8888 !important;
+}
+@media (max-width: 600px) {
+  
+  /* Fix Search Dropdown Result Window */
+  .topbar-search-dropdown {
+    position: fixed; /* Use fixed to break out of flex container */
+    left: 1rem;
+    right: 1rem;
+    top: 130px; /* Approximate height of topbar elements */
+    width: auto;
+    max-height: 60vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+
+  /* Fix Notification Dropdown Overflow */
+  .notification-dropdown {
+    position: fixed;
+    top: 70px;
+    left: 1rem;
+    right: 1rem;
+    width: auto; /* Allow it to stretch */
+    max-width: none;
+  }
+
+  Adjust Topbar layout for better spacing
+  .topbar {
+    padding: 0.75rem;
+  }
+  
+  .topbar-search {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+}
+@media (max-width: 600px) {
+  
+  /* Layout: Wrap Items */
+  .topbar {
+    flex-wrap: wrap; 
+    padding: 0.75rem 1rem;
+    gap: 0.75rem 0; /* Vertical gap for the search bar */
+  }
+
+  /* Order: Logo(1), Actions(2), Search(3) */
+  .topbar-logo-section {
+    order: 1;
+    flex: 1; /* Take available space */
+  }
+
+  .topbar-actions-section {
+    order: 2;
+    flex-shrink: 0;
+  }
+
+  .topbar-search-section {
+    order: 3;
+    width: 100%; /* Force full width on new line */
+    max-width: 100%;
+    margin-top: 0.25rem;
+  }
+
+  /* Fix Search Dropdown Result Window on Mobile */
+  /* Using fixed positioning relative to viewport to avoid cutting off */
+  .topbar-search-dropdown {
+    position: fixed; 
+    left: 1rem;
+    right: 1rem;
+    top: 140px; /* Push down below the double-row header */
+    width: auto;
+    max-height: 60vh;
+    overflow-y: auto;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+
+  /* Fix Notification Dropdown Overflow */
+  .notification-dropdown {
+    position: fixed; /* Break out of relative container */
+    top: 70px; /* Below the top row */
+    right: 1rem;
+    left: 1rem; /* Stretch across screen with margins */
+    width: auto;
+    max-width: none;
+    max-height: 50vh;
+  }
+
+  /* Fix Profile Dropdown Overflow */
+  .profile-dropdown {
+  position: fixed;
+    top: 70px;
+    right: 1rem;
+    width: 220px;
+    background-color: #1a1a1a !important;
+  }
+
+  .profile-header-mobile {
+    display: block;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.8rem;
+    color: #9ca3af;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .topbar-profile-name {
+    display: none;
+  }
+}

@@ -118,6 +118,7 @@ export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, vie
         onTouchMove={() => clearTimeout(timerRef.current)}
         className={`card glass-panel ${isGlowing ? "glow-new" : ""} ${viewMode === "list" ? "card-list" : ""}`}
         style={{
+
           overflow: "hidden",
           position: "relative",
           cursor: "pointer"
@@ -148,16 +149,35 @@ export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, vie
         </div>
 
         <div className="card-body">
-          <h3 className="card-title">{item.title}</h3>
-          <p className="card-subline">
-            {item.type?.toUpperCase()}
-          </p>
-          {item.watchedSeason && item.type === "tv" && (
-            <div className="card-watched-info">
-              Watched: Season {item.watchedSeason}
-            </div>
-          )}
-        </div>
+  <div className="card-title">
+    {item.title}
+    {/* Show New Badge inline for List View */}
+    {viewMode === "list" && isGlowing && (
+      <span className="list-tag-new">New</span>
+    )}
+  </div>
+  
+  <div className="card-subline">
+    {item.type?.toUpperCase()}
+  </div>
+
+  {/* Show Rating inline for List View */}
+  {viewMode === "list" && item.rating && (
+    <div className="card-list-meta-row">
+      <span className="list-rating">⭐ {item.rating.toFixed(1)}</span>
+      {item.watchedSeason && item.type === "tv" && (
+         <span>• S{item.watchedSeason} Watched</span>
+      )}
+    </div>
+  )}
+
+  {/* Grid View Only Watched Info */}
+  {viewMode !== "list" && item.watchedSeason && item.type === "tv" && (
+    <div className="card-watched-info">
+      Watched: Season {item.watchedSeason}
+    </div>
+  )}
+</div>
 
         <button
           onClick={e => {

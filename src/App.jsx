@@ -286,14 +286,24 @@ export default function App() {
         onOpenSettings={() => setShowSettings(true)}
         onSelectTitle={addFromTMDB}
       />
-      <TierList 
-        items={sorted} 
-        onRate={updateEagerness} 
-        onDelete={deleteItem}
-        onUpdateWatched={updateWatched}
-        viewMode={viewMode}
-        calendarEnabled={userSettings?.calendarIntegration || false}
-      />
+      {sorted.length === 0 ? (
+        <div className="empty-state-container">
+          <div className="empty-state-icon">🍿</div>
+          <div className="empty-state-text">Your watchlist is looking empty</div>
+          <div className="empty-state-subtext">
+            Use the search bar above to find movies & series to add.
+          </div>
+        </div>
+      ) : (
+        <TierList 
+          items={sorted} 
+          onRate={updateEagerness} 
+          onDelete={deleteItem}
+          onUpdateWatched={updateWatched}
+          viewMode={viewMode}
+          calendarEnabled={userSettings?.calendarIntegration || false}
+        />
+      )}
 
       {showTierModal && pendingItem && (
         <div className="modal-backdrop">
