@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { getDetails, getVideos } from "../services/tmdb";
 
-export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, viewMode = "grid" }) {
+export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, viewMode = "grid", calendarEnabled = false }) {
   const timerRef = useRef(null);
   const [showDelete, setShowDelete] = useState(false);
   const [showWatchedModal, setShowWatchedModal] = useState(false);
@@ -11,6 +11,7 @@ export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, vie
   const [trailerKey, setTrailerKey] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [details, setDetails] = useState(null);
+  const [showTrailer, setShowTrailer] = useState(false);
 
   const lastLabel =
     item.type === "tv"
@@ -91,10 +92,8 @@ export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, vie
     }
   };
 
-  const openTrailer = () => {
-    if (trailerKey) {
-      window.open(`https://www.youtube.com/watch?v=${trailerKey}`, '_blank');
-    }
+  const toggleTrailer = () => {
+    setShowTrailer(!showTrailer);
   };
 
   return (
@@ -213,6 +212,79 @@ export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, vie
               </div>
             </div>
 
+            {calendarEnabled && (
+              <div style={{ marginBottom: "1rem", paddingTop: "0.75rem", borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
+                <div style={{ marginBottom: "0.75rem", fontSize: "0.9rem", opacity: 0.9 }}>
+                  Set a reminder for next episode:
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <input
+                    type="date"
+                    id={`calendar-date-${item.id}`}
+                    defaultValue={item.lastDate ? new Date(item.lastDate).toISOString().split('T')[0] : ""}
+                    style={{
+                      flex: 1,
+                      padding: "0.5rem",
+                      background: "rgba(15,23,42,0.9)",
+                      border: "1px solid rgba(148,163,184,0.4)",
+                      borderRadius: "6px",
+                      color: "#fff",
+                      fontSize: "0.85rem"
+                    }}
+                  />
+                  <input
+                    type="time"
+                    id={`calendar-time-${item.id}`}
+                    defaultValue="20:00"
+                    style={{
+                      padding: "0.5rem",
+                      background: "rgba(15,23,42,0.9)",
+                      border: "1px solid rgba(148,163,184,0.4)",
+                      borderRadius: "6px",
+                      color: "#fff",
+                      fontSize: "0.85rem"
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-youtube"
+                  style={{ width: "100%" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const dateInput = document.getElementById(`calendar-date-${item.id}`);
+                    const timeInput = document.getElementById(`calendar-time-${item.id}`);
+                    const selectedDate = dateInput.value;
+                    const selectedTime = timeInput.value;
+                    
+                    if (!selectedDate) {
+                      alert("Please select a date");
+                      return;
+                    }
+
+                    // Create Google Calendar event
+                    const eventTitle = `Watch: ${item.title} - Season ${item.watchedSeason || maxSeason}`;
+                    const eventDescription = item.overview || `TV Series - Next episode reminder`;
+                    const startDateTime = `${selectedDate}T${selectedTime}:00`;
+                    const endDateTime = new Date(new Date(startDateTime).getTime() + 60 * 60 * 1000).toISOString().replace(/\.\d{3}Z$/, "");
+                    
+                    // Google Calendar URL
+                    const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&details=${encodeURIComponent(eventDescription)}&dates=${startDateTime.replace(/[-:]/g, "")}/${endDateTime.replace(/[-:]/g, "")}`;
+                    
+                    window.open(calendarUrl, "_blank");
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: "0.5rem" }}>
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                  Add to Google Calendar
+                </button>
+              </div>
+            )}
+
             <div className="modal-footer">
               <button
                 type="button"
@@ -295,21 +367,38 @@ export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, vie
                   </p>
                 </div>
 
-                <div className="summary-footer">
-                  {trailerKey && (
+                {trailerKey && (
+                  <div className="summary-trailer-section">
                     <button
                       type="button"
                       className="btn btn-youtube"
-                      onClick={openTrailer}
+                      onClick={toggleTrailer}
                     >
                       <span className="youtube-icon">▶</span>
-                      Watch Trailer
+                      {showTrailer ? "Hide Trailer" : "Watch Trailer"}
                     </button>
-                  )}
+                    {showTrailer && (
+                      <div className="youtube-embed">
+                        <iframe
+                          src={`https://www.youtube.com/embed/${trailerKey}`}
+                          title="Trailer"
+                          frameBorder="0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="summary-footer">
                   <button
                     type="button"
                     className="btn btn-outline"
-                    onClick={() => setShowSummaryModal(false)}
+                    onClick={() => {
+                      setShowSummaryModal(false);
+                      setShowTrailer(false);
+                    }}
                   >
                     Close
                   </button>

@@ -13,7 +13,8 @@ export async function getUserSettings(uid) {
   return {
     emailNotifications: false,
     emailFrequency: "daily", // "daily", "immediate", "weekly"
-    email: null
+    email: null,
+    calendarIntegration: false
   };
 }
 
@@ -24,5 +25,6 @@ export async function updateUserSettings(uid, settings) {
     updatedAt: Date.now()
   }, { merge: true });
 }
+
 
 

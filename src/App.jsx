@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
 import TopBar from "./components/TopBar";
-import AddTitle from "./components/AddTitle";
-import Grid from "./components/Grid";
 import TierList from "./components/TierList";
 import Settings from "./components/Settings";
+import LandingPage from "./components/LandingPage";
 
 import useAuth from "./hooks/useAuth";
 
@@ -15,6 +14,7 @@ import {
 } from "./services/watchlist";
 
 import { getDetails, getVideos, posterUrl } from "./services/tmdb";
+import { getUserSettings } from "./services/userSettings";
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -26,11 +26,51 @@ export default function App() {
   const [showTierModal, setShowTierModal] = useState(false);
   const [viewMode, setViewMode] = useState("grid"); // "grid" or "list"
   const [showSettings, setShowSettings] = useState(false);
+  const [showTrailer, setShowTrailer] = useState(false);
+  const [userSettings, setUserSettings] = useState(null);
 
   useEffect(() => {
     if (!user) return;
     return subscribeWatchlist(user.uid, setItems);
   }, [user]);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (!user) return;
+      try {
+        const settings = await getUserSettings(user.uid);
+        setUserSettings(settings);
+      } catch (error) {
+        console.error("Failed to load user settings:", error);
+      }
+    };
+    loadSettings();
+  }, [user]);
+
+  // Auto-refresh daily
+  useEffect(() => {
+    if (!user || !items.length) return;
+
+    const checkAndRefresh = async () => {
+      const lastRefreshKey = `lastRefresh_${user.uid}`;
+      const lastRefresh = localStorage.getItem(lastRefreshKey);
+      const now = Date.now();
+      
+      // Check if 24 hours have passed (86400000 milliseconds)
+      if (!lastRefresh || now - parseInt(lastRefresh) > 86400000) {
+        console.log("🔄 Auto-refreshing watchlist (daily check)...");
+        await refreshAll();
+        localStorage.setItem(lastRefreshKey, now.toString());
+      }
+    };
+
+    checkAndRefresh();
+
+    // Set up interval to check every hour if refresh is needed
+    const interval = setInterval(checkAndRefresh, 3600000); // Check every hour
+
+    return () => clearInterval(interval);
+  }, [user, items.length]);
 
   if (loading)
     return (
@@ -41,8 +81,8 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="app-root section-stack">
-        <TopBar user={user} onRefresh={() => {}} refreshing={false} />
+      <div className="app-root">
+        <LandingPage />
       </div>
     );
   }
@@ -51,6 +91,13 @@ export default function App() {
     try {
       console.log("TMDB result:", result);
   
+      // Check for duplicates
+      const existingItem = items.find(item => item.tmdbId === result.id && item.type === result.media_type);
+      if (existingItem) {
+        alert(`"${result.title || result.name}" is already in your watchlist!`);
+        return;
+      }
+
       const [details, trailerKey] = await Promise.all([
         getDetails(result.media_type, result.id),
         getVideos(result.media_type, result.id)
@@ -110,35 +157,45 @@ export default function App() {
   
 
   const refreshAll = async () => {
+    if (!user) return;
+    
     setRefreshing(true);
 
-    for (const item of items) {
-      const details = await getDetails(item.type, item.tmdbId);
+    try {
+      for (const item of items) {
+        const details = await getDetails(item.type, item.tmdbId);
 
-      if (item.type === "tv") {
-        const ep = details.last_episode_to_air;
-        if (ep) {
-          const info = `S${ep.season_number} E${ep.episode_number}`;
-          if (info !== item.lastInfo) {
-            await updateWatch(user.uid, item.id, {
-              lastInfo: info,
-              lastDate: ep.air_date,
-              status: "new",
-              updatedAt: Date.now()
-            });
+        if (item.type === "tv") {
+          const ep = details.last_episode_to_air;
+          if (ep) {
+            const info = `S${ep.season_number} E${ep.episode_number}`;
+            if (info !== item.lastInfo) {
+              await updateWatch(user.uid, item.id, {
+                lastInfo: info,
+                lastDate: ep.air_date,
+                status: "new",
+                updatedAt: Date.now()
+              });
+            }
           }
+        } else if (
+          details.release_date &&
+          details.release_date !== item.lastDate
+        ) {
+          await updateWatch(user.uid, item.id, {
+            lastInfo: details.release_date,
+            lastDate: details.release_date,
+            status: "new",
+            updatedAt: Date.now()
+          });
         }
-      } else if (
-        details.release_date &&
-        details.release_date !== item.lastDate
-      ) {
-        await updateWatch(user.uid, item.id, {
-          lastInfo: details.release_date,
-          lastDate: details.release_date,
-          status: "new",
-          updatedAt: Date.now()
-        });
       }
+
+      // Update last refresh timestamp
+      const lastRefreshKey = `lastRefresh_${user.uid}`;
+      localStorage.setItem(lastRefreshKey, Date.now().toString());
+    } catch (error) {
+      console.error("Error during refresh:", error);
     }
 
     setRefreshing(false);
@@ -160,6 +217,7 @@ export default function App() {
     } finally {
       setShowTierModal(false);
       setPendingItem(null);
+      setShowTrailer(false);
     }
   };
 
@@ -170,6 +228,7 @@ export default function App() {
     } finally {
       setShowTierModal(false);
       setPendingItem(null);
+      setShowTrailer(false);
     }
   };
 
@@ -225,14 +284,15 @@ export default function App() {
         viewMode={viewMode}
         setViewMode={setViewMode}
         onOpenSettings={() => setShowSettings(true)}
+        onSelectTitle={addFromTMDB}
       />
-      <AddTitle onSelect={addFromTMDB} />
       <TierList 
         items={sorted} 
         onRate={updateEagerness} 
         onDelete={deleteItem}
         onUpdateWatched={updateWatched}
         viewMode={viewMode}
+        calendarEnabled={userSettings?.calendarIntegration || false}
       />
 
       {showTierModal && pendingItem && (
@@ -246,6 +306,7 @@ export default function App() {
                 onClick={() => {
                   setShowTierModal(false);
                   setPendingItem(null);
+                  setShowTrailer(false);
                 }}
               >
                 ✕
@@ -326,65 +387,64 @@ export default function App() {
               </div>
             )}
 
-            {/* Trailer button */}
+            {/* Trailer button and embedded player */}
             {pendingItem.trailerKey && (
               <div style={{ marginBottom: "0.9rem" }}>
                 <button
                   type="button"
                   className="btn btn-youtube"
-                  onClick={() =>
-                    window.open(
-                      `https://www.youtube.com/watch?v=${pendingItem.trailerKey}`,
-                      "_blank"
-                    )
-                  }
+                  onClick={() => setShowTrailer(!showTrailer)}
                 >
                   <span className="youtube-icon">▶</span>
-                  Watch Trailer
+                  {showTrailer ? "Hide Trailer" : "Watch Trailer"}
                 </button>
+                {showTrailer && (
+                  <div className="youtube-embed">
+                    <iframe
+                      src={`https://www.youtube.com/embed/${pendingItem.trailerKey}`}
+                      title="Trailer"
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Watched season (optional) */}
-            <div style={{ marginBottom: "0.9rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.35rem",
-                  fontSize: "0.85rem",
-                  opacity: 0.9
-                }}
-              >
-                Watched up to season (optional)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max={pendingItem.totalSeasons || undefined}
-                placeholder="e.g. 2"
-                defaultValue={pendingItem.watchedSeason || ""}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  background: "rgba(15,23,42,0.9)",
-                  border: "1px solid rgba(148,163,184,0.4)",
-                  borderRadius: "6px",
-                  color: "#fff",
-                  fontSize: "0.9rem"
-                }}
-                onChange={e => {
-                  let season = parseInt(e.target.value, 10) || null;
-                  if (pendingItem.totalSeasons && season && season > pendingItem.totalSeasons) {
-                    season = pendingItem.totalSeasons;
-                  }
-                  setPendingItem(prev => ({
-                    ...prev,
-                    watchedSeason: season,
-                    watchedEpisode: season ? 0 : null
-                  }));
-                }}
-              />
-            </div>
+            {/* Watched season (optional) - only for TV series */}
+            {pendingItem.type === "tv" && pendingItem.totalSeasons && (
+              <div style={{ marginBottom: "0.9rem" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.5rem",
+                    fontSize: "0.85rem",
+                    opacity: 0.9
+                  }}
+                >
+                  Watched up to season (optional)
+                </label>
+                <div className="season-buttons-grid">
+                  {Array.from({ length: pendingItem.totalSeasons }, (_, i) => i + 1).map(season => (
+                    <button
+                      key={season}
+                      type="button"
+                      className={`season-button ${pendingItem.watchedSeason === season ? "season-button-active" : ""}`}
+                      onClick={() => {
+                        setPendingItem(prev => ({
+                          ...prev,
+                          watchedSeason: season,
+                          watchedEpisode: 0
+                        }));
+                      }}
+                    >
+                      Season {season}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Tier selection */}
             <div style={{ marginTop: "0.5rem" }}>

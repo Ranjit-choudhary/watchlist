@@ -9,7 +9,7 @@ const TIERS = [
   { value: 1, label: "🔥 Low Priority" }
 ];
 
-export default function TierList({ items, onRate, onDelete, onUpdateWatched, viewMode = "grid" }) {
+export default function TierList({ items, onRate, onDelete, onUpdateWatched, viewMode = "grid", calendarEnabled = false }) {
   const [dragged, setDragged] = useState(null);
 
   // Check if item has new unwatched episodes
@@ -71,6 +71,7 @@ export default function TierList({ items, onRate, onDelete, onUpdateWatched, vie
               onRate={onRate}
               onUpdateWatched={onUpdateWatched}
               viewMode={viewMode}
+              calendarEnabled={calendarEnabled}
             />
           </div>
         );

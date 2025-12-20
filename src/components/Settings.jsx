@@ -7,7 +7,8 @@ export default function Settings({ user, onClose }) {
   const [settings, setSettings] = useState({
     emailNotifications: false,
     emailFrequency: "daily",
-    email: user?.email || ""
+    email: user?.email || "",
+    calendarIntegration: false
   });
 
   useEffect(() => {
@@ -18,7 +19,8 @@ export default function Settings({ user, onClose }) {
         setSettings({
           emailNotifications: userSettings.emailNotifications || false,
           emailFrequency: userSettings.emailFrequency || "daily",
-          email: userSettings.email || user.email || ""
+          email: userSettings.email || user.email || "",
+          calendarIntegration: userSettings.calendarIntegration || false
         });
       } catch (error) {
         console.error("Failed to load settings:", error);
@@ -135,6 +137,31 @@ export default function Settings({ user, onClose }) {
           </div>
 
           <div className="settings-section">
+            <h3 className="settings-section-title">Calendar Integration</h3>
+            <p className="settings-section-description">
+              Add upcoming episodes or movie releases directly to your Google Calendar.
+            </p>
+
+            <div className="settings-option">
+              <label className="settings-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={settings.calendarIntegration}
+                  onChange={(e) => setSettings({
+                    ...settings,
+                    calendarIntegration: e.target.checked
+                  })}
+                  className="settings-checkbox"
+                />
+                <span>Enable calendar integration</span>
+              </label>
+              <small className="settings-hint" style={{ marginTop: "0.5rem", display: "block" }}>
+                When enabled, a calendar button will appear on each card. Click it to add the next episode or release date to your Google Calendar.
+              </small>
+            </div>
+          </div>
+
+          <div className="settings-section">
             <h3 className="settings-section-title">About</h3>
             <p className="settings-section-description">
               Email notifications are powered by Firebase Cloud Functions and SendGrid.
@@ -165,5 +192,6 @@ export default function Settings({ user, onClose }) {
     </div>
   );
 }
+
 
 

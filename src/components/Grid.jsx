@@ -2,7 +2,7 @@ import React from "react";
 import WatchCard from "./WatchCard";
 import EmptyState from "./EmptyState";
 
-export default function Grid({ items, onDelete, onDrag, onRate, onUpdateWatched, viewMode = "grid" }) {
+export default function Grid({ items, onDelete, onDrag, onRate, onUpdateWatched, viewMode = "grid", calendarEnabled = false }) {
   if (!items.length) return <EmptyState />;
 
   if (viewMode === "list") {
@@ -17,6 +17,7 @@ export default function Grid({ items, onDelete, onDrag, onRate, onUpdateWatched,
               onRate={onRate}
               onUpdateWatched={onUpdateWatched}
               viewMode="list"
+              calendarEnabled={calendarEnabled}
             />
           </div>
         ))}
@@ -35,6 +36,7 @@ export default function Grid({ items, onDelete, onDrag, onRate, onUpdateWatched,
           onRate={onRate}
           onUpdateWatched={onUpdateWatched}
           viewMode="grid"
+          calendarEnabled={calendarEnabled}
         />
       ))}
     </div>
