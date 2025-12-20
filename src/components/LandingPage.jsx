@@ -151,7 +151,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="landing-footer">
-        <p>Made with ❤️ for movie & TV enthusiasts</p>
+        <p>Made with ❤️ for movie & TV enthusiasts by Ranjit and Ai</p>
         <div className="footer-links">
           <a href="https://github.com/Ranjit-choudhary" target="_blank" rel="noopener noreferrer">GitHub</a>
           <span>•</span>
