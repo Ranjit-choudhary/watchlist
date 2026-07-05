@@ -3,7 +3,26 @@ import { signInWithPopup, signOut } from "firebase/auth";
 import { auth, provider } from "../firebase";
 import { searchTMDB, posterUrl } from "../services/tmdb";
 
-export default function TopBar({ user, onRefresh, refreshing, unwatchedCount = 0, unwatchedItems = [], viewMode = "grid", setViewMode, onOpenSettings, onSelectTitle }) {
+export default function TopBar({
+  user,
+  onRefresh,
+  refreshing,
+  unwatchedCount = 0,
+  unwatchedItems = [],
+  viewMode = "grid",
+  setViewMode,
+  onOpenSettings,
+  onSelectTitle,
+  route = "/",
+  onNavigate,
+  onDismissNotification,
+  onClearAllNotifications,
+  watchlistSearchQuery = "",
+  setWatchlistSearchQuery,
+  watchlistSearchResults = [],
+  allItems = [],
+  onToggleBucket
+}) {
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationRef = useRef(null);
   
@@ -15,6 +34,9 @@ export default function TopBar({ user, onRefresh, refreshing, unwatchedCount = 0
   const [searchResults, setSearchResults] = useState([]);
   const searchRef = useRef(null);
 
+  // Search mode: "tmdb" or "mylist"
+  const [searchMode, setSearchMode] = useState("tmdb");
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -23,6 +45,7 @@ export default function TopBar({ user, onRefresh, refreshing, unwatchedCount = 0
       }
       if (searchRef.current && !searchRef.current.contains(event.target)) {
         setSearchResults([]);
+        if (setWatchlistSearchQuery) setWatchlistSearchQuery("");
       }
       if (profileRef.current && !profileRef.current.contains(event.target)) {
         setShowProfileMenu(false);
@@ -33,9 +56,9 @@ export default function TopBar({ user, onRefresh, refreshing, unwatchedCount = 0
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Search functionality
+  // TMDB search
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    if (searchMode !== "tmdb" || !searchQuery.trim()) {
       setSearchResults([]);
       return;
     }
@@ -44,7 +67,15 @@ export default function TopBar({ user, onRefresh, refreshing, unwatchedCount = 0
       setSearchResults(results.slice(0, 6));
     }, 400);
     return () => clearTimeout(timeout);
-  }, [searchQuery]);
+  }, [searchQuery, searchMode]);
+
+  // Watchlist search
+  useEffect(() => {
+    if (searchMode !== "mylist") return;
+    if (setWatchlistSearchQuery) {
+      setWatchlistSearchQuery(searchQuery);
+    }
+  }, [searchQuery, searchMode]);
 
   const handleSelectTitle = (result) => {
     onSelectTitle(result);
@@ -61,34 +92,62 @@ export default function TopBar({ user, onRefresh, refreshing, unwatchedCount = 0
     }
   };
 
+  const currentSearchValue = searchQuery;
+
   return (
     <div className="topbar">
       {/* 1. Logo Section */}
       <div className="topbar-logo-section">
-        <div className="topbar-logo">
+        <div className="topbar-logo" style={{ cursor: "pointer" }} onClick={() => onNavigate && onNavigate("/")}>
           <span className="topbar-logo-icon">🎬</span>
           <span className="topbar-logo-text">Watchlist</span>
         </div>
       </div>
       
-      {/* 2. Search Section (Will be moved via CSS order on mobile) */}
+      {/* 2. Search Section */}
       {user && (
         <div className="topbar-search-section" ref={searchRef}>
-          <div className="search-input-wrapper">
-            <svg className="topbar-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8"></circle>
-              <path d="m21 21-4.35-4.35"></path>
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search movies & series..."
-              className="topbar-search-input"
-            />
+          <div className="unified-search-bar">
+            <div className="search-mode-switcher">
+              <button
+                className={`search-mode-tab ${searchMode === "tmdb" ? "active" : ""}`}
+                onClick={() => {
+                  setSearchMode("tmdb");
+                  setSearchQuery("");
+                  setSearchResults([]);
+                  if (setWatchlistSearchQuery) setWatchlistSearchQuery("");
+                }}
+              >
+                TMDB
+              </button>
+              <button
+                className={`search-mode-tab ${searchMode === "mylist" ? "active" : ""}`}
+                onClick={() => {
+                  setSearchMode("mylist");
+                  setSearchQuery("");
+                  setSearchResults([]);
+                }}
+              >
+                My List
+              </button>
+            </div>
+            <div className="unified-search-input-wrap">
+              <svg className="unified-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+              </svg>
+              <input
+                type="text"
+                value={currentSearchValue}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={searchMode === "tmdb" ? "Search TMDB..." : "Search your watchlist..."}
+                className="unified-search-input"
+              />
+            </div>
           </div>
           
-          {searchResults.length > 0 && (
+          {/* TMDB results dropdown */}
+          {searchMode === "tmdb" && searchResults.length > 0 && (
             <div className="topbar-search-dropdown">
               {searchResults.map(result => (
                 <div key={result.id} onClick={() => handleSelectTitle(result)} className="topbar-search-result">
@@ -103,6 +162,37 @@ export default function TopBar({ user, onRefresh, refreshing, unwatchedCount = 0
               ))}
             </div>
           )}
+
+          {/* Watchlist search results dropdown */}
+          {searchMode === "mylist" && searchQuery.trim() && watchlistSearchResults.length > 0 && (
+            <div className="watchlist-search-dropdown">
+              {watchlistSearchResults.map(item => (
+                <div key={item.id} className="watchlist-search-result" onClick={() => {
+                  setSearchQuery("");
+                  if (setWatchlistSearchQuery) setWatchlistSearchQuery("");
+                  // Could scroll to the item or open its modal
+                }}>
+                  {item.poster && <img src={item.poster} alt="" className="topbar-search-poster" />}
+                  <div className="topbar-search-info">
+                    <div className="topbar-search-title">{item.title}</div>
+                    <div className="topbar-search-meta">
+                      {item.type?.toUpperCase()}
+                      {item.watchedSeason && ` • Watched S${item.watchedSeason}${item.watchedEpisode ? ` E${item.watchedEpisode}` : ""}`}
+                      {item.eagerness && ` • ${"🔥".repeat(item.eagerness)}`}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {searchMode === "mylist" && searchQuery.trim() && watchlistSearchResults.length === 0 && (
+            <div className="watchlist-search-dropdown">
+              <div style={{ padding: "1.5rem", textAlign: "center", color: "#9ca3af", fontSize: "0.85rem" }}>
+                No matches in your watchlist
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -110,6 +200,30 @@ export default function TopBar({ user, onRefresh, refreshing, unwatchedCount = 0
       <div className="topbar-actions-section">
         {user && (
           <>
+            {onToggleBucket && (
+              <button 
+                className="topbar-action-btn bucket-btn" 
+                onClick={onToggleBucket}
+                title="Watch Next Stack"
+              >
+                🪣
+              </button>
+            )}
+
+            {/* New Episodes Nav Button */}
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate(route === "/new-episodes" ? "/" : "/new-episodes")}
+                className={`topbar-nav-btn ${route === "/new-episodes" ? "active" : ""}`}
+              >
+                📺
+                <span className="topbar-nav-btn-text">New</span>
+                {unwatchedCount > 0 && (
+                  <span className="topbar-nav-badge">{unwatchedCount}</span>
+                )}
+              </button>
+            )}
+
             {/* Notification Button */}
             {unwatchedCount > 0 && (
               <div className="notification-container" ref={notificationRef}>
@@ -128,18 +242,48 @@ export default function TopBar({ user, onRefresh, refreshing, unwatchedCount = 0
                   <div className="notification-dropdown">
                     <div className="notification-dropdown-header">
                       <span>New Episodes</span>
-                      <button onClick={() => setShowNotifications(false)} className="notification-close">✕</button>
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                        {onClearAllNotifications && (
+                          <button
+                            className="notification-clear-all"
+                            onClick={() => {
+                              onClearAllNotifications();
+                              setShowNotifications(false);
+                            }}
+                          >
+                            Clear All
+                          </button>
+                        )}
+                        <button onClick={() => setShowNotifications(false)} className="notification-close">✕</button>
+                      </div>
                     </div>
                     <div className="notification-list">
                       {unwatchedItems.map(item => (
-                        <div key={item.id} className="notification-item">
-                          <div className="notification-item-poster">
-                            {item.poster && <img src={item.poster} alt={item.title} />}
+                        <div key={item.id} className="notification-item-wrapper">
+                          <div className="notification-item">
+                            <div className="notification-item-poster">
+                              {item.poster && <img src={item.poster} alt={item.title} />}
+                            </div>
+                            <div className="notification-item-content">
+                              <div className="notification-item-title">{item.title}</div>
+                              <div className="notification-item-info">
+                                {item.lastInfo ? `New: ${item.lastInfo}` : "New episodes available"}
+                                {item.watchedSeason && ` (watched S${item.watchedSeason})`}
+                              </div>
+                            </div>
                           </div>
-                          <div className="notification-item-content">
-                            <div className="notification-item-title">{item.title}</div>
-                            <div className="notification-item-info">New episodes available</div>
-                          </div>
+                          {onDismissNotification && (
+                            <button
+                              className="notification-dismiss-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDismissNotification(item.id, item.lastInfo);
+                              }}
+                              title="Dismiss"
+                            >
+                              ✕
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>

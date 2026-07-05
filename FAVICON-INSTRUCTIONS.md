@@ -52,3 +52,4 @@ After generating the favicons, test them at:
 - https://realfavicongenerator.net/favicon_checker
 
 
+

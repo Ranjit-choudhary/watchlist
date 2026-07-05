@@ -2,23 +2,26 @@ import React, { useState } from "react";
 import Grid from "./Grid";
 
 const TIERS = [
-  { value: 5, label: "🔥🔥🔥🔥🔥 Can’t Wait" },
+  { value: 5, label: "🔥🔥🔥🔥🔥 Can't Wait" },
   { value: 4, label: "🔥🔥🔥🔥 Very Eager" },
   { value: 3, label: "🔥🔥🔥 Interested" },
   { value: 2, label: "🔥🔥 Casual" },
   { value: 1, label: "🔥 Low Priority" }
 ];
 
-export default function TierList({ items, onRate, onDelete, onUpdateWatched, viewMode = "grid", calendarEnabled = false }) {
+export default function TierList({ items, onRate, onDelete, onUpdateWatched, viewMode = "grid", calendarEnabled = false, allItems = [], onSelectTitle }) {
   const [dragged, setDragged] = useState(null);
 
   // Check if item has new unwatched episodes
   const hasNewUnwatched = (item) => {
-    if (item.type !== "tv" || !item.lastInfo || !item.watchedSeason) return false;
+    if (item.type !== "tv" || !item.lastInfo) return false;
+    if (!item.watchedSeason) return false;
     const match = item.lastInfo.match(/S(\d+)\s+E(\d+)/);
     if (!match) return false;
-    const [, lastSeason] = match.map(Number);
-    return lastSeason > item.watchedSeason;
+    const [, lastSeason, lastEpisode] = match.map(Number);
+    if (lastSeason > item.watchedSeason) return true;
+    if (lastSeason === item.watchedSeason && item.watchedEpisode && lastEpisode > item.watchedEpisode) return true;
+    return false;
   };
 
   // Sort items: new unwatched first, then by updatedAt
@@ -72,6 +75,8 @@ export default function TierList({ items, onRate, onDelete, onUpdateWatched, vie
               onUpdateWatched={onUpdateWatched}
               viewMode={viewMode}
               calendarEnabled={calendarEnabled}
+              allItems={allItems}
+              onSelectTitle={onSelectTitle}
             />
           </div>
         );
