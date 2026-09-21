@@ -4,7 +4,8 @@ import {
   deleteDoc,
   doc,
   onSnapshot,
-  updateDoc
+  updateDoc,
+  writeBatch
 } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -28,4 +29,16 @@ export function updateWatch(uid, id, data) {
 
 export function removeWatch(uid, id) {
   return deleteDoc(doc(db, "users", uid, "watchlist", id));
+}
+
+export function reorderBucket(uid, orderedItems) {
+  const batch = writeBatch(db);
+  const now = Date.now();
+  orderedItems.forEach((item, i) => {
+    // Index 0 is top of stack, meaning highest timestamp.
+    batch.update(doc(db, "users", uid, "watchlist", item.id), {
+      addedToBucketAt: now - i * 1000
+    });
+  });
+  return batch.commit();
 }

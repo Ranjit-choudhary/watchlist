@@ -7,6 +7,7 @@ import {
   getSeasonEpisodeCounts,
   extractUpcomingInfo,
   hasUpcomingWithinMonths,
+  getWatchProviders,
   posterUrl
 } from "../services/tmdb";
 import { updateWatch } from "../services/watchlist";
@@ -36,6 +37,9 @@ export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, vie
 
   // New: Upcoming info
   const [upcomingInfo, setUpcomingInfo] = useState(null);
+
+  // New: Where to watch (streaming availability)
+  const [watchProviders, setWatchProviders] = useState(null);
 
   const lastLabel =
     item.type === "tv"
@@ -190,6 +194,10 @@ export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, vie
         // Fetch recommendations
         const recs = await getRecommendations(item.type, item.tmdbId);
         setRecommendations(recs);
+
+        // Fetch streaming availability
+        const providers = await getWatchProviders(item.type, item.tmdbId);
+        setWatchProviders(providers);
 
         // Fetch collection for movies
         if (item.type === "movie" && fetchedDetails.belongs_to_collection) {
@@ -641,6 +649,47 @@ export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, vie
                           allowFullScreen
                         />
                       </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Where to watch (streaming availability) */}
+                {watchProviders && (watchProviders.flatrate.length > 0 || watchProviders.rent.length > 0 || watchProviders.buy.length > 0) && (
+                  <div className="watch-providers-section">
+                    <h3 className="summary-section-title">📺 Where to Watch</h3>
+                    {["flatrate", "rent", "buy"].map(kind =>
+                      watchProviders[kind].length > 0 ? (
+                        <div key={kind} className="watch-providers-row">
+                          <span className="watch-providers-label">
+                            {kind === "flatrate" ? "Stream" : kind === "rent" ? "Rent" : "Buy"}
+                          </span>
+                          <div className="watch-providers-list">
+                            {watchProviders[kind].map(p => (
+                              p.logo ? (
+                                <img
+                                  key={p.id}
+                                  src={p.logo}
+                                  alt={p.name}
+                                  title={p.name}
+                                  className="watch-provider-logo"
+                                />
+                              ) : (
+                                <span key={p.id} className="watch-provider-text">{p.name}</span>
+                              )
+                            ))}
+                          </div>
+                        </div>
+                      ) : null
+                    )}
+                    {watchProviders.link && (
+                      <a
+                        href={watchProviders.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="watch-providers-link"
+                      >
+                        View all options on TMDB →
+                      </a>
                     )}
                   </div>
                 )}

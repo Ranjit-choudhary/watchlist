@@ -1,4 +1,6 @@
-const API_KEY = "4bb9fd44f0907b5158c6a6db356c360e";
+// Falls back to the existing key so builds without VITE_TMDB_API_KEY set
+// keep working; set VITE_TMDB_API_KEY in .env.local to override.
+const API_KEY = import.meta.env.VITE_TMDB_API_KEY || "4bb9fd44f0907b5158c6a6db356c360e";
 const BASE = "https://api.themoviedb.org/3";
 
 // ─── Cache Layer ───────────────────────────────────────────
@@ -12,6 +14,7 @@ const CACHE_TTL = {
   recommendations: 7 * 24 * 60 * 60 * 1000,
   collection: 7 * 24 * 60 * 60 * 1000,
   season: 24 * 60 * 60 * 1000,     // 24 hours
+  providers: 24 * 60 * 60 * 1000,  // 24 hours
 };
 
 function getCacheKey(category, ...parts) {
@@ -227,6 +230,46 @@ export async function getRecommendations(type, id) {
     return result;
   } catch {
     return [];
+  }
+}
+
+// ─── New: Watch providers (streaming availability) ───────
+
+export async function getWatchProviders(type, id, region = "US") {
+  const cacheKey = getCacheKey("providers", type, id);
+  const cached = getFromCache(cacheKey, CACHE_TTL.providers);
+  if (cached !== null) return cached;
+
+  try {
+    const res = await fetch(
+      `${BASE}/${type}/${id}/watch/providers?api_key=${API_KEY}`
+    );
+    const data = await res.json();
+    const forRegion = data.results?.[region];
+    const result = forRegion
+      ? {
+          link: forRegion.link || null,
+          flatrate: (forRegion.flatrate || []).map(p => ({
+            id: p.provider_id,
+            name: p.provider_name,
+            logo: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null
+          })),
+          rent: (forRegion.rent || []).map(p => ({
+            id: p.provider_id,
+            name: p.provider_name,
+            logo: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null
+          })),
+          buy: (forRegion.buy || []).map(p => ({
+            id: p.provider_id,
+            name: p.provider_name,
+            logo: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null
+          }))
+        }
+      : null;
+    setInCache(cacheKey, result);
+    return result;
+  } catch {
+    return null;
   }
 }
 

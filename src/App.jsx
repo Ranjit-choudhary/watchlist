@@ -5,6 +5,8 @@ import Settings from "./components/Settings";
 import LandingPage from "./components/LandingPage";
 import NewEpisodesPage from "./components/NewEpisodesPage";
 import BucketPanel from "./components/BucketPanel";
+import ToastContainer from "./components/ToastContainer";
+import { toast } from "./lib/toast";
 
 import useAuth from "./hooks/useAuth";
 import { useHashRoute } from "./hooks/useHashRoute";
@@ -13,7 +15,8 @@ import {
   subscribeWatchlist,
   addWatch,
   updateWatch,
-  removeWatch
+  removeWatch,
+  reorderBucket
 } from "./services/watchlist";
 
 import {
@@ -25,12 +28,13 @@ import {
   hasUpcomingWithinMonths,
   batchRefreshDetails
 } from "./services/tmdb";
-import { getUserSettings } from "./services/userSettings";
+import { getUserSettings, updateUserSettings } from "./services/userSettings";
 
 export default function App() {
   const { user, loading } = useAuth();
   const { route, navigate } = useHashRoute();
   const [items, setItems] = useState([]);
+  const [itemsLoading, setItemsLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("pain");
   const [refreshing, setRefreshing] = useState(false);
@@ -41,12 +45,9 @@ export default function App() {
   const [showTrailer, setShowTrailer] = useState(false);
   const [userSettings, setUserSettings] = useState(null);
 
-  // Notification dismissal state
-  const [dismissedNotifs, setDismissedNotifs] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("dismissed_notifs") || "{}");
-    } catch { return {}; }
-  });
+  // Notification dismissal state — synced via user settings so dismissing
+  // a "new episode" badge on one device clears it on every device.
+  const [dismissedNotifs, setDismissedNotifs] = useState({});
 
   // Watchlist search
   const [watchlistSearchQuery, setWatchlistSearchQuery] = useState("");
@@ -69,7 +70,11 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    return subscribeWatchlist(user.uid, setItems);
+    setItemsLoading(true);
+    return subscribeWatchlist(user.uid, list => {
+      setItems(list);
+      setItemsLoading(false);
+    });
   }, [user]);
 
   useEffect(() => {
@@ -78,6 +83,7 @@ export default function App() {
       try {
         const settings = await getUserSettings(user.uid);
         setUserSettings(settings);
+        setDismissedNotifs(settings.dismissedNotifs || {});
       } catch (error) {
         console.error("Failed to load user settings:", error);
       }
@@ -165,6 +171,7 @@ export default function App() {
     return (
       <div className="app-root">
         <LandingPage />
+        <ToastContainer />
       </div>
     );
   }
@@ -176,7 +183,7 @@ export default function App() {
       // Check for duplicates
       const existingItem = items.find(item => item.tmdbId === result.id && item.type === result.media_type);
       if (existingItem) {
-        alert(`"${result.title || result.name}" is already in your watchlist!`);
+        toast(`"${result.title || result.name}" is already in your watchlist!`, "error");
         return;
       }
 
@@ -266,7 +273,7 @@ export default function App() {
       console.log("✅ Prepared draft item for tier selection");
     } catch (e) {
       console.error("❌ Failed to add:", e);
-      alert("Failed to add item. Check console.");
+      toast("Failed to add item. Please try again.", "error");
     }
   };
   
@@ -402,7 +409,9 @@ export default function App() {
     const key = `${itemId}_${lastInfo}`;
     const updated = { ...dismissedNotifs, [key]: true };
     setDismissedNotifs(updated);
-    localStorage.setItem("dismissed_notifs", JSON.stringify(updated));
+    updateUserSettings(user.uid, { dismissedNotifs: updated }).catch(e =>
+      console.error("Failed to sync dismissed notification:", e)
+    );
   };
 
   const clearAllNotifications = () => {
@@ -413,7 +422,9 @@ export default function App() {
     });
     const merged = { ...dismissedNotifs, ...updated };
     setDismissedNotifs(merged);
-    localStorage.setItem("dismissed_notifs", JSON.stringify(merged));
+    updateUserSettings(user.uid, { dismissedNotifs: merged }).catch(e =>
+      console.error("Failed to sync dismissed notifications:", e)
+    );
   };
 
 
@@ -486,13 +497,7 @@ export default function App() {
 
   const handleReorderBucket = async (newOrderedItems) => {
     if (!user) return;
-    const now = Date.now();
-    for (let i = 0; i < newOrderedItems.length; i++) {
-      const item = newOrderedItems[i];
-      // Index 0 is top of stack, meaning highest timestamp.
-      const timestamp = now - (i * 1000);
-      await updateWatch(user.uid, item.id, { addedToBucketAt: timestamp });
-    }
+    await reorderBucket(user.uid, newOrderedItems);
   };
 
   return (
@@ -531,7 +536,12 @@ export default function App() {
         />
       ) : (
         <>
-          {sorted.length === 0 ? (
+          {itemsLoading ? (
+            <div className="empty-state-container">
+              <div className="summary-loading-spinner" style={{ margin: "0 auto 1rem" }}></div>
+              <div className="empty-state-text">Loading your watchlist…</div>
+            </div>
+          ) : sorted.length === 0 ? (
             <div className="empty-state-container">
               <div className="empty-state-icon">🍿</div>
               <div className="empty-state-text">Your watchlist is looking empty</div>
@@ -822,6 +832,8 @@ export default function App() {
           // Scroll to or highlight if needed
         }}
       />
+
+      <ToastContainer />
     </div>
   );
 }

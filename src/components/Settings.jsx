@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { getUserSettings, updateUserSettings } from "../services/userSettings";
+import { toast } from "../lib/toast";
 
 export default function Settings({ user, onClose }) {
   const [loading, setLoading] = useState(true);
@@ -36,11 +37,11 @@ export default function Settings({ user, onClose }) {
     setSaving(true);
     try {
       await updateUserSettings(user.uid, settings);
-      alert("Settings saved successfully!");
+      toast("Settings saved successfully!", "success");
       onClose();
     } catch (error) {
       console.error("Failed to save settings:", error);
-      alert("Failed to save settings. Please try again.");
+      toast("Failed to save settings. Please try again.", "error");
     } finally {
       setSaving(false);
     }
