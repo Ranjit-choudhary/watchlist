@@ -7,36 +7,30 @@ decisions or are too large to do safely in one pass.
 
 ## Now
 
-- **Finish or disable email notifications** — Settings.jsx tells users
-  notifications are "powered by Firebase Cloud Functions and SendGrid,"
-  but `functions/index.js` (the `checkNewEpisodes` scheduled function) is
-  never deployed: it's missing from `firebase.json`'s config, and it still
-  has placeholder values (`from: 'noreply@yourdomain.com'`, a
-  `your-app-url.com` link, and no real SendGrid API key configured). Right
-  now toggling it on in Settings saves a preference that nothing acts on.
-  To ship it for real:
-  - Add a `functions` block to `firebase.json` and deploy with
-    `firebase deploy --only functions`.
-  - Set `sendgrid.key` via Firebase config (or env var) and a real
-    verified sender address.
-  - Replace the hardcoded TMDB key in `functions/index.js` with
-    `functions.config().tmdb.key` (mirrors the frontend's
-    `VITE_TMDB_API_KEY` pattern in `.env.example`).
-  - Until this is done, consider marking the Settings toggle "Coming
-    soon" so it doesn't imply a working feature.
+- **Email notifications — code is deploy-ready, deploy is pending on
+  credentials.** `functions/index.js` now reads `sendgrid.key`,
+  `sendgrid.sender`, and `tmdb.key` from Firebase config instead of
+  hardcoded placeholders, skips the run with a loud error if any are
+  missing, and `firebase.json` has a `functions` block so
+  `firebase deploy` actually picks it up. What's left, once a SendGrid
+  account exists:
+  1. `firebase functions:config:set sendgrid.key="..." sendgrid.sender="..." tmdb.key="..."`
+     (see `functions/README.md`).
+  2. `firebase deploy --only functions`.
+  Until step 2 happens, the Settings toggle still saves a preference
+  that nothing acts on yet.
 
-- **Automated tests** — no test runner exists yet. Highest-value first
-  targets, since both are parsed from strings with no schema validation:
-  - The `S<season> E<episode>` regex used to detect unwatched episodes
-    (`App.jsx`'s `isItemUnwatched`/`getUnwatchedItems`, and the same
-    pattern in `WatchCard.jsx`).
-  - The pain-index sort (`App.jsx`'s `painIndex`).
-  - Vitest is the natural fit given the Vite build setup already in place.
+- ~~Automated tests~~ — done. Added Vitest (`npm test`), plus
+  `src/lib/episodeTracking.js` and `src/lib/painIndex.js`: the
+  `S<season> E<episode>`-parsing "is this unwatched?" check and the
+  pain-index sort were previously duplicated across `App.jsx` (twice)
+  and `WatchCard.jsx`; they're now single, tested functions used by all
+  three call sites.
 
-- **Clean up debug logging** — several `console.log` calls in `App.jsx`
-  (TMDB result/detail dumps, migration progress, auto-refresh ticks) are
-  left in from development and will spam the console for every user in
-  production.
+- ~~Clean up debug logging~~ — done. Removed the leftover
+  development-only `console.log` calls in `App.jsx` (TMDB result/detail
+  dumps, migration progress, auto-refresh ticks). Error-path
+  `console.error` calls were left in place — those are real diagnostics.
 
 ## Next
 
@@ -75,9 +69,18 @@ last-synced watchlist is viewable offline.
 
 ### Rotate the shared TMDB API key
 
-Both the frontend (`src/services/tmdb.js`) and the (currently undeployed)
-Cloud Function hardcode the same TMDB v3 key as a fallback. TMDB v3 keys
-are meant to be used client-side and this isn't a secret leak, but it's
-worth rotating to a key scoped only to this app and moving the Cloud
-Function's copy to Firebase config once notifications are deployed (see
-"Now" above), rather than sharing the same literal across two surfaces.
+Both the frontend (`src/services/tmdb.js`) and the Cloud Function
+(`functions/index.js`) hardcode the same TMDB v3 key as a fallback. TMDB
+v3 keys are meant to be used client-side and this isn't a secret leak,
+but it's worth rotating to a key scoped only to this app so the two
+surfaces aren't sharing one literal. Blocked on generating the new key
+(requires the TMDB account, not something committable in code):
+1. TMDB → Settings → API → generate a new v3 key, then revoke the old one
+   (`4bb9fd44f0907b5158c6a6db356c360e`).
+2. Set it as `VITE_TMDB_API_KEY` in `.env.local` for the frontend.
+3. Set it as `tmdb.key` via `firebase functions:config:set` for the
+   Cloud Function (see the "Now" email notifications item — it already
+   reads from that config key).
+4. Once both are confirmed working, remove the hardcoded fallback
+   literal from `src/services/tmdb.js` and `functions/index.js` so the
+   app only reads from env/config.
