@@ -29,6 +29,8 @@ import {
   batchRefreshDetails
 } from "./services/tmdb";
 import { getUserSettings, updateUserSettings } from "./services/userSettings";
+import { isUnwatched } from "./lib/episodeTracking";
+import { painIndex } from "./lib/painIndex";
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -102,7 +104,6 @@ export default function App() {
       
       // Check if 24 hours have passed (86400000 milliseconds)
       if (!lastRefresh || now - parseInt(lastRefresh) > 86400000) {
-        console.log("🔄 Auto-refreshing watchlist (daily check)...");
         await refreshAll();
         localStorage.setItem(lastRefreshKey, now.toString());
       }
@@ -127,7 +128,6 @@ export default function App() {
     );
     
     if (needsMigration.length > 0) {
-      console.log(`Migrating ${needsMigration.length} items in background for upcoming dates...`);
       const migrate = async () => {
         // Use batchRefreshDetails to fetch details from TMDB with caching
         const { batchRefreshDetails } = await import('./services/tmdb');
@@ -178,8 +178,6 @@ export default function App() {
 
   const addFromTMDB = async result => {
     try {
-      console.log("TMDB result:", result);
-  
       // Check for duplicates
       const existingItem = items.find(item => item.tmdbId === result.id && item.type === result.media_type);
       if (existingItem) {
@@ -191,7 +189,6 @@ export default function App() {
         getDetails(result.media_type, result.id),
         getVideos(result.media_type, result.id)
       ]);
-      console.log("TMDB details:", details);
 
       // Extract last episode info for TV shows
       let lastInfo = null;
@@ -269,8 +266,6 @@ export default function App() {
       setPendingSelectedSeason(null);
       setPendingItem(draft);
       setShowTierModal(true);
-
-      console.log("✅ Prepared draft item for tier selection");
     } catch (e) {
       console.error("❌ Failed to add:", e);
       toast("Failed to add item. Please try again.", "error");
@@ -381,21 +376,7 @@ export default function App() {
   const deleteItem = id => removeWatch(user.uid, id);
 
   // ─── Unwatched items (green glow) ─────────────────────
-  const getUnwatchedItems = () => {
-    return items.filter(item => {
-      if (item.type !== "tv" || !item.lastInfo) return false;
-      if (!item.watchedSeason) return false; // null = not tracking
-      const match = item.lastInfo.match(/S(\d+)\s+E(\d+)/);
-      if (!match) return false;
-      const [, lastSeason, lastEpisode] = match.map(Number);
-      // Unwatched if: behind on season OR same season but behind on episode
-      if (lastSeason > item.watchedSeason) return true;
-      if (lastSeason === item.watchedSeason && item.watchedEpisode && lastEpisode > item.watchedEpisode) return true;
-      return false;
-    });
-  };
-
-  const unwatchedItems = getUnwatchedItems();
+  const unwatchedItems = items.filter(isUnwatched);
 
   // Filter out dismissed notifications
   const activeUnwatchedItems = unwatchedItems.filter(item => {
@@ -433,29 +414,9 @@ export default function App() {
     filter === "all" ? true : i.status === filter
   );
 
-  const painIndex = item =>
-    item.lastDate
-      ? Math.floor(
-          ((Date.now() - new Date(item.lastDate)) /
-            (1000 * 60 * 60 * 24)) *
-            item.eagerness
-        )
-      : 0;
-
-  const isItemUnwatched = item => {
-    if (item.type !== "tv" || !item.lastInfo) return false;
-    if (!item.watchedSeason) return false;
-    const match = item.lastInfo.match(/S(\d+)\s+E(\d+)/);
-    if (!match) return false;
-    const [, lastSeason, lastEpisode] = match.map(Number);
-    if (lastSeason > item.watchedSeason) return true;
-    if (lastSeason === item.watchedSeason && item.watchedEpisode && lastEpisode > item.watchedEpisode) return true;
-    return false;
-  };
-
   const isItemUpcoming = item => {
     if (item.type !== "tv") return false;
-    if (isItemUnwatched(item)) return false;
+    if (isUnwatched(item)) return false;
     const targetDateStr = item.nextEpisodeDate;
     if (!targetDateStr) return false;
     const nextDate = new Date(targetDateStr);
@@ -467,8 +428,8 @@ export default function App() {
 
   const sorted = [...visible].sort((a, b) => {
     // 1. Unwatched (Green Glow)
-    const aUnwatched = isItemUnwatched(a);
-    const bUnwatched = isItemUnwatched(b);
+    const aUnwatched = isUnwatched(a);
+    const bUnwatched = isUnwatched(b);
     if (aUnwatched && !bUnwatched) return -1;
     if (!aUnwatched && bUnwatched) return 1;
 

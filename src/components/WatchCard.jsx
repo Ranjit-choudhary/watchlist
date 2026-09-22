@@ -12,6 +12,7 @@ import {
 } from "../services/tmdb";
 import { updateWatch } from "../services/watchlist";
 import { auth } from "../firebase";
+import { isUnwatched } from "../lib/episodeTracking";
 
 export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, viewMode = "grid", calendarEnabled = false, allItems = [], onSelectTitle }) {
   const timerRef = useRef(null);
@@ -47,16 +48,7 @@ export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, vie
       : item.lastDate || item.lastInfo || "—";
 
   // Check if card should have GREEN glow (unwatched new episodes)
-  const shouldGlow = () => {
-    if (item.type !== "tv" || !item.lastInfo) return false;
-    if (!item.watchedSeason) return false;
-    const match = item.lastInfo.match(/S(\d+)\s+E(\d+)/);
-    if (!match) return false;
-    const [, lastSeason, lastEpisode] = match.map(Number);
-    if (lastSeason > item.watchedSeason) return true;
-    if (lastSeason === item.watchedSeason && item.watchedEpisode && lastEpisode > item.watchedEpisode) return true;
-    return false;
-  };
+  const shouldGlow = () => isUnwatched(item);
 
   // Check if card should have YELLOW glow (upcoming within 12 months, caught up)
   const shouldGlowUpcoming = () => {
