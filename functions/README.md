@@ -13,34 +13,35 @@ cd functions
 npm install
 ```
 
-### 2. Configure SendGrid API Key
+### 2. Configure Firebase Function Config
 ```bash
-firebase functions:config:set sendgrid.key="YOUR_SENDGRID_API_KEY"
+firebase functions:config:set \
+  sendgrid.key="YOUR_SENDGRID_API_KEY" \
+  sendgrid.sender="noreply@yourdomain.com" \
+  tmdb.key="YOUR_TMDB_API_KEY"
 ```
 
-Or set as environment variable:
+`sendgrid.sender` must be an address (or domain) verified in your SendGrid
+account, or sends will be rejected. `tmdb.key` should be its own key
+separate from the frontend's `VITE_TMDB_API_KEY` (see the root
+`.env.example`).
+
+Optionally override the link used in notification emails (defaults to
+`https://<project-id>.web.app`):
 ```bash
-export SENDGRID_API_KEY="your-api-key"
+firebase functions:config:set app.url="https://your-custom-domain.com"
 ```
 
-### 3. Update Email Sender
-Edit `functions/index.js` and change:
-```javascript
-from: 'noreply@yourdomain.com', // Change to your verified sender
-```
+The function checks all three of `sendgrid.key`, `sendgrid.sender`, and
+`tmdb.key` at run time and skips the run (logging an error) if any are
+missing, so a partial deploy fails loudly instead of silently no-op'ing.
 
-### 4. Update App URL
-Edit `functions/index.js` and change:
-```javascript
-Visit your watchlist to see more details: https://your-app-url.com
-```
-
-### 5. Deploy Functions
+### 3. Deploy Functions
 ```bash
 firebase deploy --only functions
 ```
 
-### 6. Verify Deployment
+### 4. Verify Deployment
 Check Firebase Console > Functions to see the scheduled function.
 
 ## How It Works

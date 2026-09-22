@@ -20,12 +20,19 @@ const sgMail = require('@sendgrid/mail');
 
 admin.initializeApp();
 
-// Set your SendGrid API key in Firebase config:
-// firebase functions:config:set sendgrid.key="YOUR_SENDGRID_API_KEY"
-sgMail.setApiKey(functions.config().sendgrid?.key || process.env.SENDGRID_API_KEY);
+const config = functions.config();
 
-const TMDB_API_KEY = '4bb9fd44f0907b5158c6a6db356c360e';
+// Required Firebase config (set before deploying):
+//   firebase functions:config:set sendgrid.key="..." sendgrid.sender="noreply@yourdomain.com" tmdb.key="..."
+// Optional:
+//   firebase functions:config:set app.url="https://your-app-url.com" (defaults to the Firebase Hosting URL)
+const SENDGRID_KEY = config.sendgrid?.key || process.env.SENDGRID_API_KEY;
+const SENDGRID_SENDER = config.sendgrid?.sender || process.env.SENDGRID_SENDER;
+const TMDB_API_KEY = config.tmdb?.key || process.env.TMDB_API_KEY;
+const APP_URL = config.app?.url || `https://${process.env.GCLOUD_PROJECT}.web.app`;
 const TMDB_BASE = 'https://api.themoviedb.org/3';
+
+if (SENDGRID_KEY) sgMail.setApiKey(SENDGRID_KEY);
 
 /**
  * Scheduled function that runs daily to check for new episodes
@@ -35,8 +42,15 @@ exports.checkNewEpisodes = functions.pubsub
   .schedule('every 24 hours')
   .timeZone('America/New_York')
   .onRun(async (context) => {
+    if (!SENDGRID_KEY || !SENDGRID_SENDER || !TMDB_API_KEY) {
+      console.error(
+        'checkNewEpisodes is missing required config (sendgrid.key, sendgrid.sender, tmdb.key). Skipping run.'
+      );
+      return null;
+    }
+
     console.log('Starting daily episode check...');
-    
+
     const db = admin.firestore();
     const usersSnapshot = await db.collectionGroup('watchlist').get();
     
@@ -144,7 +158,7 @@ async function sendNotificationEmail(email, newEpisodes) {
 
   const msg = {
     to: email,
-    from: 'noreply@yourdomain.com', // Change to your verified sender
+    from: SENDGRID_SENDER,
     subject: `New Episodes Available - ${newEpisodes.length} Show${newEpisodes.length > 1 ? 's' : ''}`,
     text: `
 Hello!
@@ -153,7 +167,7 @@ New episodes are available for shows in your watchlist:
 
 ${itemsList}
 
-Visit your watchlist to see more details: https://your-app-url.com
+Visit your watchlist to see more details: ${APP_URL}
 
 Happy watching!
     `.trim(),
@@ -171,7 +185,7 @@ Happy watching!
           `).join('')}
         </ul>
         <p>
-          <a href="https://your-app-url.com" 
+          <a href="${APP_URL}"
              style="display: inline-block; padding: 0.75rem 1.5rem; background: #e50914; color: white; text-decoration: none; border-radius: 6px;">
             View Watchlist
           </a>
