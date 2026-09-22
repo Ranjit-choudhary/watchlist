@@ -1,6 +1,5 @@
-// Falls back to the existing key so builds without VITE_TMDB_API_KEY set
-// keep working; set VITE_TMDB_API_KEY in .env.local to override.
-const API_KEY = import.meta.env.VITE_TMDB_API_KEY || "4bb9fd44f0907b5158c6a6db356c360e";
+// Set VITE_TMDB_API_KEY in .env.local (see .env.example).
+const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const BASE = "https://api.themoviedb.org/3";
 
 // ─── Cache Layer ───────────────────────────────────────────
