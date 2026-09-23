@@ -7,6 +7,10 @@ decisions or are too large to do safely in one pass.
 
 ## Now
 
+- ~~Auto-deploy~~ — done. Every push to `main` builds, tests and publishes
+  to Firebase Hosting (`.github/workflows/firebase-hosting-merge.yml`),
+  using the `VITE_TMDB_API_KEY` and Firebase service-account repo secrets.
+
 - **Email notifications — code is deploy-ready, deploy is pending on
   credentials.** `functions/index.js` now reads `sendgrid.key`,
   `sendgrid.sender`, and `tmdb.key` from Firebase config instead of
