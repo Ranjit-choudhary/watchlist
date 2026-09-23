@@ -21,7 +21,7 @@ export default function TopBar({
   setWatchlistSearchQuery,
   watchlistSearchResults = [],
   allItems = [],
-  onToggleBucket
+  onSurpriseMe
 }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationRef = useRef(null);
@@ -200,31 +200,35 @@ export default function TopBar({
       <div className="topbar-actions-section">
         {user && (
           <>
-            {onToggleBucket && (
-              <button 
-                className="topbar-action-btn bucket-btn" 
-                onClick={onToggleBucket}
-                title="Watch Next Stack"
-              >
-                🪣
-              </button>
+            {refreshing && (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="rotating" style={{ opacity: 0.6 }} aria-label="Checking for new episodes">
+                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+              </svg>
             )}
 
-            {/* New Episodes Nav Button */}
             {onNavigate && (
               <button
-                onClick={() => onNavigate(route === "/new-episodes" ? "/" : "/new-episodes")}
-                className={`topbar-nav-btn ${route === "/new-episodes" ? "active" : ""}`}
+                className={`topbar-icon-btn ${route === "/finished" ? "active" : ""}`}
+                onClick={() => onNavigate(route === "/finished" ? "/" : "/finished")}
+                title="The Vault — finished titles"
+                aria-label="The Vault"
               >
-                📺
-                <span className="topbar-nav-btn-text">New</span>
-                {unwatchedCount > 0 && (
-                  <span className="topbar-nav-badge">{unwatchedCount}</span>
-                )}
+                🎞️
               </button>
             )}
 
-            {/* Notification Button */}
+            {onSurpriseMe && (
+              <button
+                className="topbar-icon-btn"
+                onClick={onSurpriseMe}
+                title="Surprise me"
+                aria-label="Surprise me"
+              >
+                🎲
+              </button>
+            )}
+
+            {/* New episodes: bell dropdown, with a link to the full page */}
             {unwatchedCount > 0 && (
               <div className="notification-container" ref={notificationRef}>
                 <button
@@ -243,6 +247,17 @@ export default function TopBar({
                     <div className="notification-dropdown-header">
                       <span>New Episodes</span>
                       <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                        {onNavigate && route !== "/new-episodes" && (
+                          <button
+                            className="notification-clear-all"
+                            onClick={() => {
+                              onNavigate("/new-episodes");
+                              setShowNotifications(false);
+                            }}
+                          >
+                            View all
+                          </button>
+                        )}
                         {onClearAllNotifications && (
                           <button
                             className="notification-clear-all"
@@ -292,23 +307,7 @@ export default function TopBar({
               </div>
             )}
 
-            {/* Refresh Button */}
-            <button onClick={onRefresh} disabled={refreshing} className="topbar-icon-btn">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={refreshing ? "rotating" : ""}>
-                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-              </svg>
-            </button>
-
-            {/* View Toggle */}
-            <button onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")} className="topbar-icon-btn">
-              {viewMode === "grid" ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-              ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-              )}
-            </button>
-
-            {/* Profile Dropdown with Logout */}
+            {/* Profile menu also holds the less-used view toggle and manual refresh */}
             <div className="topbar-divider"></div>
             <div style={{ position: "relative" }} ref={profileRef}>
               <button
@@ -326,7 +325,26 @@ export default function TopBar({
                    <div className="profile-header-mobile">
                       {user?.displayName || user?.email}
                    </div>
-                  <button 
+                  <button
+                    className="profile-menu-item"
+                    onClick={() => {
+                      setViewMode(viewMode === "grid" ? "list" : "grid");
+                      setShowProfileMenu(false);
+                    }}
+                  >
+                    {viewMode === "grid" ? "☰ List view" : "▦ Grid view"}
+                  </button>
+                  <button
+                    className="profile-menu-item"
+                    disabled={refreshing}
+                    onClick={() => {
+                      onRefresh();
+                      setShowProfileMenu(false);
+                    }}
+                  >
+                    {refreshing ? "↻ Checking…" : "↻ Check all for new episodes"}
+                  </button>
+                  <button
                     className="profile-menu-item"
                     onClick={() => {
                       onOpenSettings();

@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import TopBar from "./components/TopBar";
 import TierList from "./components/TierList";
 import Settings from "./components/Settings";
 import LandingPage from "./components/LandingPage";
 import NewEpisodesPage from "./components/NewEpisodesPage";
-import BucketPanel from "./components/BucketPanel";
+import VaultPage from "./components/VaultPage";
+import SurpriseMe from "./components/SurpriseMe";
 import ToastContainer from "./components/ToastContainer";
 import { toast } from "./lib/toast";
 
@@ -15,8 +16,7 @@ import {
   subscribeWatchlist,
   addWatch,
   updateWatch,
-  removeWatch,
-  reorderBucket
+  removeWatch
 } from "./services/watchlist";
 
 import {
@@ -31,11 +31,17 @@ import {
 import { getUserSettings, updateUserSettings } from "./services/userSettings";
 import { isUnwatched } from "./lib/episodeTracking";
 import { painIndex } from "./lib/painIndex";
+import { needsCheck } from "./lib/refreshPolicy";
+import { isFinished } from "./lib/finished";
 
 export default function App() {
   const { user, loading } = useAuth();
   const { route, navigate } = useHashRoute();
   const [items, setItems] = useState([]);
+  // Latest items for the hourly auto-check, whose closure would otherwise be stale.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const refreshingRef = useRef(false);
   const [itemsLoading, setItemsLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("pain");
@@ -44,6 +50,7 @@ export default function App() {
   const [showTierModal, setShowTierModal] = useState(false);
   const [viewMode, setViewMode] = useState("grid"); // "grid" or "list"
   const [showSettings, setShowSettings] = useState(false);
+  const [showSurprise, setShowSurprise] = useState(false);
   const [showTrailer, setShowTrailer] = useState(false);
   const [userSettings, setUserSettings] = useState(null);
 
@@ -58,8 +65,6 @@ export default function App() {
   const [pendingEpisodeCounts, setPendingEpisodeCounts] = useState({});
   const [pendingSelectedSeason, setPendingSelectedSeason] = useState(null);
 
-  // Bucket Panel State
-  const [showBucket, setShowBucket] = useState(false);
 
   // ─── Watchlist search ──────────────────────────────────
   const watchlistSearchResults = useMemo(() => {
@@ -93,26 +98,14 @@ export default function App() {
     loadSettings();
   }, [user]);
 
-  // Auto-refresh daily
+  // Auto-check on load and hourly — only titles that are due per
+  // lib/refreshPolicy (e.g. a show whose next episode date has arrived).
   useEffect(() => {
     if (!user || !items.length) return;
 
-    const checkAndRefresh = async () => {
-      const lastRefreshKey = `lastRefresh_${user.uid}`;
-      const lastRefresh = localStorage.getItem(lastRefreshKey);
-      const now = Date.now();
-      
-      // Check if 24 hours have passed (86400000 milliseconds)
-      if (!lastRefresh || now - parseInt(lastRefresh) > 86400000) {
-        await refreshAll();
-        localStorage.setItem(lastRefreshKey, now.toString());
-      }
-    };
-
-    checkAndRefresh();
-
-    // Set up interval to check every hour if refresh is needed
-    const interval = setInterval(checkAndRefresh, 3600000); // Check every hour
+    const checkDue = () => refreshAll({ onlyDue: true });
+    checkDue();
+    const interval = setInterval(checkDue, 3600000);
 
     return () => clearInterval(interval);
   }, [user, items.length]);
@@ -167,7 +160,9 @@ export default function App() {
       </div>
     );
 
-  if (!user) {
+  // #/landing always shows the landing page, so it can be previewed or
+  // shared while signed in.
+  if (!user || route === "/landing") {
     return (
       <div className="app-root">
         <LandingPage />
@@ -181,7 +176,8 @@ export default function App() {
       // Check for duplicates
       const existingItem = items.find(item => item.tmdbId === result.id && item.type === result.media_type);
       if (existingItem) {
-        toast(`"${result.title || result.name}" is already in your watchlist!`, "error");
+        const where = isFinished(existingItem) ? "The Vault" : "your watchlist";
+        toast(`"${result.title || result.name}" is already in ${where}!`, "error");
         return;
       }
 
@@ -256,6 +252,8 @@ export default function App() {
         nextEpisodeInfo,
         seasonEpisodeCounts,
         collectionId,
+        showStatus: result.media_type === "tv" ? details.status || null : null,
+        lastCheckedAt: Date.now(),
         createdAt: Date.now()
       };
 
@@ -273,21 +271,36 @@ export default function App() {
   };
   
 
-  const refreshAll = async () => {
-    if (!user) return;
-    
+  // onlyDue: automatic check, skipping titles where nothing can have changed.
+  // Otherwise (the menu's "check all") every title is checked.
+  const refreshAll = async ({ onlyDue = false } = {}) => {
+    if (!user || refreshingRef.current) return;
+
+    const now = Date.now();
+    const active = itemsRef.current.filter(item => !isFinished(item));
+    const toCheck = onlyDue ? active.filter(item => needsCheck(item, now)) : active;
+    if (toCheck.length === 0) return;
+
+    refreshingRef.current = true;
     setRefreshing(true);
 
     try {
-      const results = await batchRefreshDetails(items);
+      // Bypass the 24h details cache: a due title needs today's data.
+      const results = await batchRefreshDetails(toCheck, 250, {
+        fresh: true,
+        stopOnNetworkError: onlyDue
+      });
 
       for (const { item, details } of results) {
-        if (!details) continue;
+        // TMDB error bodies (bad key, 404) have success: false — don't treat
+        // their missing fields as "no next episode".
+        if (!details || details.success === false) continue;
+        const updates = { lastCheckedAt: now };
 
         if (item.type === "tv") {
           const ep = details.last_episode_to_air;
-          const updates = {};
-          
+          if (details.status) updates.showStatus = details.status;
+
           if (ep) {
             const info = `S${ep.season_number} E${ep.episode_number}`;
             if (info !== item.lastInfo) {
@@ -310,31 +323,24 @@ export default function App() {
           // Update total seasons/episodes
           if (details.number_of_seasons) updates.totalSeasons = details.number_of_seasons;
           if (details.number_of_episodes) updates.totalEpisodes = details.number_of_episodes;
-
-          if (Object.keys(updates).length > 0) {
-            updates.updatedAt = Date.now();
-            await updateWatch(user.uid, item.id, updates);
-          }
+          if (updates.lastInfo) updates.updatedAt = now;
         } else if (
           details.release_date &&
           details.release_date !== item.lastDate
         ) {
-          await updateWatch(user.uid, item.id, {
-            lastInfo: details.release_date,
-            lastDate: details.release_date,
-            status: "new",
-            updatedAt: Date.now()
-          });
+          updates.lastInfo = details.release_date;
+          updates.lastDate = details.release_date;
+          updates.status = "new";
+          updates.updatedAt = now;
         }
-      }
 
-      // Update last refresh timestamp
-      const lastRefreshKey = `lastRefresh_${user.uid}`;
-      localStorage.setItem(lastRefreshKey, Date.now().toString());
+        await updateWatch(user.uid, item.id, updates);
+      }
     } catch (error) {
       console.error("Error during refresh:", error);
     }
 
+    refreshingRef.current = false;
     setRefreshing(false);
   };
 
@@ -375,8 +381,20 @@ export default function App() {
 
   const deleteItem = id => removeWatch(user.uid, id);
 
+  const deleteFromVault = id => {
+    const item = items.find(i => i.id === id);
+    if (window.confirm(`Remove "${item?.title}" completely?`)) deleteItem(id);
+  };
+
+  const moveBackToWatchlist = id =>
+    updateWatch(user.uid, id, { finishedAt: null, finalRating: null });
+
+  // Finished titles live in The Vault, not the watchlist.
+  const activeItems = items.filter(i => !isFinished(i));
+  const finishedItems = items.filter(isFinished);
+
   // ─── Unwatched items (green glow) ─────────────────────
-  const unwatchedItems = items.filter(isUnwatched);
+  const unwatchedItems = activeItems.filter(isUnwatched);
 
   // Filter out dismissed notifications
   const activeUnwatchedItems = unwatchedItems.filter(item => {
@@ -410,7 +428,7 @@ export default function App() {
 
 
   // ─── Filtering & Sorting ──────────────────────────────
-  const visible = items.filter(i =>
+  const visible = activeItems.filter(i =>
     filter === "all" ? true : i.status === filter
   );
 
@@ -456,11 +474,6 @@ export default function App() {
     ? pendingEpisodeCounts[pendingSelectedSeason] || 0
     : 0;
 
-  const handleReorderBucket = async (newOrderedItems) => {
-    if (!user) return;
-    await reorderBucket(user.uid, newOrderedItems);
-  };
-
   return (
     <div className="app-root section-stack">
       <TopBar
@@ -479,7 +492,7 @@ export default function App() {
         onSelectTitle={addFromTMDB}
         route={route}
         onNavigate={navigate}
-        onToggleBucket={() => setShowBucket(!showBucket)}
+        onSurpriseMe={() => setShowSurprise(true)}
         onDismissNotification={dismissNotification}
         onClearAllNotifications={clearAllNotifications}
         watchlistSearchQuery={watchlistSearchQuery}
@@ -489,7 +502,14 @@ export default function App() {
       />
 
       {/* Route: New Episodes Page */}
-      {route === "/new-episodes" ? (
+      {route === "/finished" ? (
+        <VaultPage
+          items={finishedItems}
+          onMoveBack={moveBackToWatchlist}
+          onDelete={deleteFromVault}
+          onNavigateBack={() => navigate("/")}
+        />
+      ) : route === "/new-episodes" ? (
         <NewEpisodesPage
           items={unwatchedItems}
           onUpdateWatched={updateWatched}
@@ -781,18 +801,18 @@ export default function App() {
         />
       )}
 
-      {/* Watch Next Stack (Bucket) */}
-      <BucketPanel 
-        items={items} 
-        isOpen={showBucket} 
-        onToggle={() => setShowBucket(!showBucket)} 
-        onRemoveFromBucket={(id) => updateWatch(user.uid, id, { addedToBucketAt: null })}
-        onReorderBucket={handleReorderBucket}
-        onItemClick={(item) => {
-          setShowBucket(false);
-          // Scroll to or highlight if needed
-        }}
-      />
+      {/* "Surprise me" suggestion */}
+      {showSurprise && (
+        <SurpriseMe
+          items={items}
+          onClose={() => setShowSurprise(false)}
+          onAdd={result => {
+            setShowSurprise(false);
+            addFromTMDB(result);
+          }}
+        />
+      )}
+
 
       <ToastContainer />
     </div>

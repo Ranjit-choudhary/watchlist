@@ -1,6 +1,8 @@
 // Set VITE_TMDB_API_KEY in .env.local (see .env.example).
 const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-const BASE = "https://api.themoviedb.org/3";
+// api.tmdb.org is TMDB's alternate API host; api.themoviedb.org is blocked by
+// some ISPs (e.g. in India), which made every request time out.
+const BASE = "https://api.tmdb.org/3";
 
 // ─── Cache Layer ───────────────────────────────────────────
 const CACHE_PREFIX = "tmdb_";
@@ -14,7 +16,21 @@ const CACHE_TTL = {
   collection: 7 * 24 * 60 * 60 * 1000,
   season: 24 * 60 * 60 * 1000,     // 24 hours
   providers: 24 * 60 * 60 * 1000,  // 24 hours
+  discover: 24 * 60 * 60 * 1000,   // 24 hours
+  providerList: 7 * 24 * 60 * 60 * 1000,
+  genres: 30 * 24 * 60 * 60 * 1000,
 };
+
+// Streaming availability is per-country. Browsers in India often report
+// en-US, so the time zone is checked first.
+export const userRegion = (() => {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz === "Asia/Kolkata" || tz === "Asia/Calcutta") return "IN";
+  } catch {}
+  const m = (typeof navigator !== "undefined" ? navigator.language : "").match(/-([a-z]{2})$/i);
+  return m ? m[1].toUpperCase() : "US";
+})();
 
 function getCacheKey(category, ...parts) {
   return `${CACHE_PREFIX}${category}_${parts.join("_")}`;
@@ -108,9 +124,10 @@ export async function searchTMDB(query) {
   return results;
 }
 
-export async function getDetails(type, id) {
+// `fresh` skips the cache read (the result is still cached for others).
+export async function getDetails(type, id, { fresh = false } = {}) {
   const cacheKey = getCacheKey("details", type, id);
-  const cached = getFromCache(cacheKey, CACHE_TTL.details);
+  const cached = fresh ? null : getFromCache(cacheKey, CACHE_TTL.details);
   if (cached) return cached;
 
   const res = await fetch(`${BASE}/${type}/${id}?api_key=${API_KEY}`);
@@ -232,10 +249,105 @@ export async function getRecommendations(type, id) {
   }
 }
 
+// ─── Discover (for "Surprise me" suggestions) ────────────
+
+// Popular, reasonably-rated titles matching ANY of the given genres,
+// streaming on ANY of providerIds (if given), released within dateFrom–dateTo
+// ("YYYY-MM-DD", either optional). With no filters this is just popular titles.
+export async function discoverTitles(type, { genreIds = [], page = 1, providerIds = [], dateFrom = null, dateTo = null } = {}) {
+  const genres = genreIds.join("|");
+  const providers = providerIds.join("|");
+  const cacheKey = getCacheKey(
+    "discover", type, genres || "any", providers || "any", userRegion,
+    dateFrom || "-", dateTo || "-", page
+  );
+  const cached = getFromCache(cacheKey, CACHE_TTL.discover);
+  if (cached) return cached;
+
+  try {
+    const params = new URLSearchParams({
+      api_key: API_KEY,
+      sort_by: "popularity.desc",
+      "vote_count.gte": "200",
+      page: String(page),
+    });
+    if (genres) params.set("with_genres", genres);
+    const dateField = type === "movie" ? "primary_release_date" : "first_air_date";
+    if (dateFrom) params.set(`${dateField}.gte`, dateFrom);
+    if (dateTo) params.set(`${dateField}.lte`, dateTo);
+    if (providers) {
+      params.set("with_watch_providers", providers);
+      params.set("watch_region", userRegion);
+      params.set("with_watch_monetization_types", "flatrate");
+    }
+    const res = await fetch(`${BASE}/discover/${type}?${params}`);
+    const data = await res.json();
+    const results = (data.results || []).map(r => ({ ...r, media_type: type }));
+    setInCache(cacheKey, results);
+    return results;
+  } catch {
+    return [];
+  }
+}
+
 // ─── New: Watch providers (streaming availability) ───────
 
-export async function getWatchProviders(type, id, region = "US") {
-  const cacheKey = getCacheKey("providers", type, id);
+// TMDB's movie and TV genre lists: { movie: [{id, name}], tv: [...] }.
+export async function getGenreLists() {
+  const cacheKey = getCacheKey("genres", "all");
+  const cached = getFromCache(cacheKey, CACHE_TTL.genres);
+  if (cached) return cached;
+
+  try {
+    const [movie, tv] = await Promise.all(
+      ["movie", "tv"].map(t =>
+        fetch(`${BASE}/genre/${t}/list?api_key=${API_KEY}`).then(r => r.json())
+      )
+    );
+    const result = { movie: movie.genres || [], tv: tv.genres || [] };
+    if (result.movie.length && result.tv.length) setInCache(cacheKey, result);
+    return result;
+  } catch {
+    return { movie: [], tv: [] };
+  }
+}
+
+// Rent/buy storefronts and aggregators: they have no subscription catalogue,
+// so a subscription-only discover on them never returns anything.
+const NOT_SUBSCRIPTION = /store|google play|youtube|justwatch|amazon video|rakuten|fandango|vudu|microsoft/i;
+
+// The main streaming services in the user's region, most popular first.
+export async function getProviderList(limit = 12) {
+  const cacheKey = getCacheKey("providerList", "v2", userRegion);
+  const cached = getFromCache(cacheKey, CACHE_TTL.providerList);
+  if (cached) return cached;
+
+  try {
+    const res = await fetch(
+      `${BASE}/watch/providers/movie?api_key=${API_KEY}&watch_region=${userRegion}`
+    );
+    const data = await res.json();
+    const result = (data.results || [])
+      .sort((a, b) =>
+        (a.display_priorities?.[userRegion] ?? a.display_priority ?? 999) -
+        (b.display_priorities?.[userRegion] ?? b.display_priority ?? 999)
+      )
+      .filter(p => !NOT_SUBSCRIPTION.test(p.provider_name))
+      .slice(0, limit)
+      .map(p => ({
+        id: p.provider_id,
+        name: p.provider_name,
+        logo: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null
+      }));
+    if (result.length) setInCache(cacheKey, result);
+    return result;
+  } catch {
+    return [];
+  }
+}
+
+export async function getWatchProviders(type, id, region = userRegion) {
+  const cacheKey = getCacheKey("providers", type, id, region);
   const cached = getFromCache(cacheKey, CACHE_TTL.providers);
   if (cached !== null) return cached;
 
@@ -313,11 +425,13 @@ export async function getCollection(collectionId) {
 
 // ─── Batch refresh with cache awareness ──────────────────
 
-export async function batchRefreshDetails(items, delayMs = 250) {
+// stopOnNetworkError: when TMDB is unreachable every request just times out,
+// so give up after the first one instead of waiting on each title in turn.
+export async function batchRefreshDetails(items, delayMs = 250, { fresh = false, stopOnNetworkError = false } = {}) {
   const results = [];
   for (const item of items) {
     const cacheKey = getCacheKey("details", item.type, item.tmdbId);
-    const cached = getFromCache(cacheKey, CACHE_TTL.details);
+    const cached = fresh ? null : getFromCache(cacheKey, CACHE_TTL.details);
     if (cached) {
       results.push({ item, details: cached, fromCache: true });
     } else {
@@ -326,11 +440,12 @@ export async function batchRefreshDetails(items, delayMs = 250) {
         await new Promise(r => setTimeout(r, delayMs));
       }
       try {
-        const details = await getDetails(item.type, item.tmdbId);
+        const details = await getDetails(item.type, item.tmdbId, { fresh });
         results.push({ item, details, fromCache: false });
       } catch (e) {
         console.error(`Failed to refresh ${item.title}:`, e);
         results.push({ item, details: null, fromCache: false });
+        if (stopOnNetworkError && e instanceof TypeError) break;
       }
     }
   }

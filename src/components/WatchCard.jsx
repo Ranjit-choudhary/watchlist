@@ -13,6 +13,7 @@ import {
 import { updateWatch } from "../services/watchlist";
 import { auth } from "../firebase";
 import { isUnwatched } from "../lib/episodeTracking";
+import FinishModal from "./FinishModal";
 
 export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, viewMode = "grid", calendarEnabled = false, allItems = [], onSelectTitle }) {
   const timerRef = useRef(null);
@@ -25,6 +26,7 @@ export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, vie
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [details, setDetails] = useState(null);
   const [showTrailer, setShowTrailer] = useState(false);
+  const [showFinishModal, setShowFinishModal] = useState(false);
 
   // New: Episode picker state
   const [selectedSeason, setSelectedSeason] = useState(null);
@@ -104,15 +106,6 @@ export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, vie
     }
     setShowWatchedModal(false);
     setSelectedSeason(null);
-  };
-
-  const handleToggleBucket = async (e) => {
-    e.stopPropagation();
-    if (!auth.currentUser) return;
-    const isAdded = !!item.addedToBucketAt;
-    await updateWatch(auth.currentUser.uid, item.id, {
-      addedToBucketAt: isAdded ? null : Date.now()
-    });
   };
 
   const handleSeasonSelect = async (season) => {
@@ -340,14 +333,18 @@ export default function WatchCard({ item, onDelete, onDrag, onUpdateWatched, vie
         </button>
 
         <button
-          onClick={handleToggleBucket}
-          className={`card-bucket-btn ${item.addedToBucketAt ? "in-bucket" : ""}`}
-          aria-label="Bucket"
-          title={item.addedToBucketAt ? "Remove from Watch Next Stack" : "Add to Watch Next Stack"}
+          onClick={e => { e.stopPropagation(); setShowFinishModal(true); }}
+          className="card-finish-btn"
+          aria-label="Mark as finished"
+          title="Finished it? Rate it and move it to The Vault"
         >
-          <span style={{ filter: item.addedToBucketAt ? "drop-shadow(0 0 5px #e50914)" : "none" }}>🪣</span>
+          ✓
         </button>
       </div>
+
+      {showFinishModal && (
+        <FinishModal item={item} onClose={() => setShowFinishModal(false)} />
+      )}
 
       {/* Watched Modal */}
       {showWatchedModal && item.type === "tv" && (

@@ -40,8 +40,11 @@ decisions or are too large to do safely in one pass.
   friends; needs a scoped Firestore rule change (opt-in public-read flag
   per user) on top of the current `firestore.rules`, which currently
   denies all access outside the owning user.
-- **Bulk actions** — multi-select cards to bulk-delete / re-tier / move
-  to the "watch next" bucket.
+- **Bulk actions** — multi-select cards to bulk-delete / re-tier / mark
+  finished.
+- **Vault follow-ups** — a finished series that gets a new season currently
+  stays in The Vault silently (finished titles aren't auto-checked); consider
+  un-finishing it or flagging it there.
 
 ## Later
 
@@ -51,16 +54,20 @@ A "surprise me" feature that suggests a movie/show to watch next based on
 what's already in the user's watchlist (genres, eagerness ratings, what
 they've marked watched vs. still waiting on).
 
-Deferred because it needs real design work, not just an API call:
-- **v1 (no ML needed):** use TMDB's own `/discover` endpoint, weighted by
-  the genres of the user's highest-eagerness items. This alone would cover
-  most of the value and could ship in a normal-sized change.
+- ~~**v1 (no ML needed)**~~ — done. "🎲 Surprise me" in the top bar opens
+  `SurpriseMe.jsx`: builds a genre profile from the 15 most-eager items
+  (`src/lib/suggestions.js`, tested), queries TMDB `/discover` with the top
+  genres, and picks a weighted-random title not already in the watchlist.
+  "Add to watchlist" goes through the normal tier-picker flow. The user
+  first picks their streaming services (remembered per browser, region from
+  the time zone / browser locale), and Vault titles rated 6+ also shape the
+  genre profile.
 - **v2 (smarter):** a small content-based recommender (e.g. genre/cast/
   crew embedding similarity) run as a Cloud Function so it doesn't ship an
   ML runtime to the browser. Needs a call on whether to build this
   in-house or lean on TMDB/Trakt recommendation data.
-- Needs a decision on where it lives in the UI (new tab vs. a widget on
-  the empty state) before it's implemented.
+- Possible v1 follow-ups: a "not interested" button that's remembered,
+  and factoring in watched vs. still-waiting status (not used yet).
 
 ### PWA / offline install
 
