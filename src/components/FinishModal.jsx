@@ -17,6 +17,8 @@ export default function FinishModal({ item, onClose }) {
       await updateWatch(auth.currentUser.uid, item.id, {
         finalRating: rating,
         finishedAt: item.finishedAt || Date.now(),
+        // Baseline for spotting a new season later (lib/finished vaultComeback).
+        ...(firstTime && item.type === "tv" ? { finishedSeasons: item.totalSeasons || null } : {}),
       });
       if (firstTime) toast(`"${item.title}" moved to The Vault (${rating}/10)`);
       onClose();

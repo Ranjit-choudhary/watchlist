@@ -3753,6 +3753,26 @@ body {
   color: #fff;
 }
 
+.vault-comebacks {
+  --tier-color: #facc15;
+}
+
+.vault-comebacks-hint {
+  margin: -0.25rem 0 0.9rem;
+}
+
+.vault-card-comeback {
+  border-color: rgba(250, 204, 21, 0.55);
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.18);
+}
+
+.vault-card-news {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #facc15;
+  margin-top: 0.15rem;
+}
+
 .vault-card-remove {
   position: absolute;
   top: 8px;

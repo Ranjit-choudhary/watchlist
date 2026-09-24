@@ -46,9 +46,12 @@ decisions or are too large to do safely in one pass.
   denies all access outside the owning user.
 - **Bulk actions** — multi-select cards to bulk-delete / re-tier / mark
   finished.
-- **Vault follow-ups** — a finished series that gets a new season currently
-  stays in The Vault silently (finished titles aren't auto-checked); consider
-  un-finishing it or flagging it there.
+- ~~**Vault follow-ups**~~ — done. Finished series stay on the automatic
+  new-episode check (`finishedSeasons` records the season count at finish
+  time). When TMDB lists a new season, The Vault shows it under
+  "📣 Coming back", the card says "Season N announced / premieres <date> /
+  is out", the 🎞️ button gets a count badge, and a toast fires once.
+  "↩ Watchlist" moves it back; "Ignore" stops flagging that season.
 
 ## Later
 

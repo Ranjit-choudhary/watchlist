@@ -1,10 +1,25 @@
 import React, { useState } from "react";
-import { groupByRatingTier } from "../lib/finished";
+import { groupByRatingTier, ratingTier, vaultComeback, comebackLabel } from "../lib/finished";
 import FinishModal from "./FinishModal";
 
-export default function VaultPage({ items, onMoveBack, onDelete, onNavigateBack }) {
+export default function VaultPage({ items, onMoveBack, onIgnoreComeback, onDelete, onNavigateBack }) {
   const [rating, setRating] = useState(null);
   const groups = groupByRatingTier(items);
+  const comebacks = items
+    .map(item => ({ item, comeback: vaultComeback(item) }))
+    .filter(c => c.comeback);
+
+  const card = (item, comeback) => (
+    <VaultCard
+      key={item.id}
+      item={item}
+      comeback={comeback}
+      onRerate={() => setRating(item)}
+      onMoveBack={() => onMoveBack(item.id)}
+      onIgnore={() => onIgnoreComeback(item.id)}
+      onDelete={() => onDelete(item.id)}
+    />
+  );
 
   return (
     <div className="tier-list">
@@ -19,6 +34,22 @@ export default function VaultPage({ items, onMoveBack, onDelete, onNavigateBack 
           ← Back to watchlist
         </button>
       </div>
+
+      {comebacks.length > 0 && (
+        <div className="tier vault-comebacks">
+          <div className="tier-header">
+            <h2 className="tier-title">📣 Coming back</h2>
+            <span className="tier-chip glass-chip">{comebacks.length}</span>
+          </div>
+          <p className="vault-subtitle vault-comebacks-hint">
+            You finished these, but there's a new season. Move one back to your
+            watchlist to track it.
+          </p>
+          <div className="vault-grid">
+            {comebacks.map(({ item, comeback }) => card(item, comeback))}
+          </div>
+        </div>
+      )}
 
       {groups.length === 0 ? (
         <div className="empty-state-container">
@@ -39,45 +70,60 @@ export default function VaultPage({ items, onMoveBack, onDelete, onNavigateBack 
               <span className="tier-chip glass-chip">{tierItems.length}</span>
             </div>
             <div className="vault-grid">
-              {tierItems.map(item => (
-                <div key={item.id} className={`vault-card tier-${tier.id}`}>
-                  <div
-                    className="vault-card-poster"
-                    style={item.poster ? { backgroundImage: `url(${item.poster})` } : undefined}
-                  />
-                  <span className="vault-card-score">{item.finalRating}/10</span>
-                  <button
-                    type="button"
-                    className="vault-card-remove"
-                    onClick={() => onDelete(item.id)}
-                    title="Remove completely"
-                    aria-label="Remove completely"
-                  >
-                    ✕
-                  </button>
-                  <div className="vault-card-body">
-                    <div className="vault-card-title" title={item.title}>{item.title}</div>
-                    <div className="vault-card-meta">
-                      {item.type === "tv" ? "Series" : "Movie"} · finished{" "}
-                      {new Date(item.finishedAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
-                    </div>
-                    <div className="vault-card-actions">
-                      <button type="button" onClick={() => setRating(item)} title="Change your rating">
-                        ★ Re-rate
-                      </button>
-                      <button type="button" onClick={() => onMoveBack(item.id)} title="Move back to your watchlist">
-                        ↩ Watchlist
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+              {tierItems.map(item => card(item, vaultComeback(item)))}
             </div>
           </div>
         ))
       )}
 
       {rating && <FinishModal item={rating} onClose={() => setRating(null)} />}
+    </div>
+  );
+}
+
+function VaultCard({ item, comeback, onRerate, onMoveBack, onIgnore, onDelete }) {
+  const tier = ratingTier(item.finalRating || 0);
+  return (
+    <div className={`vault-card tier-${tier.id} ${comeback ? "vault-card-comeback" : ""}`}>
+      <div
+        className="vault-card-poster"
+        style={item.poster ? { backgroundImage: `url(${item.poster})` } : undefined}
+      />
+      <span className="vault-card-score">{item.finalRating}/10</span>
+      <button
+        type="button"
+        className="vault-card-remove"
+        onClick={onDelete}
+        title="Remove completely"
+        aria-label="Remove completely"
+      >
+        ✕
+      </button>
+      <div className="vault-card-body">
+        <div className="vault-card-title" title={item.title}>{item.title}</div>
+        {comeback ? (
+          <div className="vault-card-news">{comebackLabel(comeback)}</div>
+        ) : (
+          <div className="vault-card-meta">
+            {item.type === "tv" ? "Series" : "Movie"} · finished{" "}
+            {new Date(item.finishedAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
+          </div>
+        )}
+        <div className="vault-card-actions">
+          {comeback ? (
+            <button type="button" onClick={onIgnore} title="Not watching it — stop flagging this season">
+              Ignore
+            </button>
+          ) : (
+            <button type="button" onClick={onRerate} title="Change your rating">
+              ★ Re-rate
+            </button>
+          )}
+          <button type="button" onClick={onMoveBack} title="Move back to your watchlist">
+            ↩ Watchlist
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

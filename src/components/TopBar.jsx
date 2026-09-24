@@ -8,6 +8,7 @@ export default function TopBar({
   onRefresh,
   refreshing,
   unwatchedCount = 0,
+  vaultAlertCount = 0,
   unwatchedItems = [],
   viewMode = "grid",
   setViewMode,
@@ -210,10 +211,11 @@ export default function TopBar({
               <button
                 className={`topbar-icon-btn ${route === "/finished" ? "active" : ""}`}
                 onClick={() => onNavigate(route === "/finished" ? "/" : "/finished")}
-                title="The Vault — finished titles"
-                aria-label="The Vault"
+                title={vaultAlertCount > 0 ? `The Vault — ${vaultAlertCount} coming back` : "The Vault — finished titles"}
+                aria-label={vaultAlertCount > 0 ? `The Vault, ${vaultAlertCount} coming back` : "The Vault"}
               >
                 🎞️
+                {vaultAlertCount > 0 && <span className="notification-badge">{vaultAlertCount}</span>}
               </button>
             )}
 

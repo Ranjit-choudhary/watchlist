@@ -32,7 +32,7 @@ import { getUserSettings, updateUserSettings } from "./services/userSettings";
 import { isUnwatched } from "./lib/episodeTracking";
 import { painIndex } from "./lib/painIndex";
 import { needsCheck } from "./lib/refreshPolicy";
-import { isFinished } from "./lib/finished";
+import { isFinished, vaultComeback, comebackLabel } from "./lib/finished";
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -277,8 +277,10 @@ export default function App() {
     if (!user || refreshingRef.current) return;
 
     const now = Date.now();
-    const active = itemsRef.current.filter(item => !isFinished(item));
-    const toCheck = onlyDue ? active.filter(item => needsCheck(item, now)) : active;
+    // Finished series stay on the check so The Vault can flag a new season;
+    // finished movies can't change.
+    const tracked = itemsRef.current.filter(item => !isFinished(item) || item.type === "tv");
+    const toCheck = onlyDue ? tracked.filter(item => needsCheck(item, now)) : tracked;
     if (toCheck.length === 0) return;
 
     refreshingRef.current = true;
@@ -324,6 +326,18 @@ export default function App() {
           if (details.number_of_seasons) updates.totalSeasons = details.number_of_seasons;
           if (details.number_of_episodes) updates.totalEpisodes = details.number_of_episodes;
           if (updates.lastInfo) updates.updatedAt = now;
+
+          if (isFinished(item)) {
+            // Finished before we recorded a baseline: use what we knew then.
+            if (item.finishedSeasons == null) {
+              updates.finishedSeasons = item.totalSeasons || details.number_of_seasons || null;
+            }
+            const before = vaultComeback(item);
+            const after = vaultComeback({ ...item, ...updates });
+            if (after && (!before || before.state !== after.state || before.season !== after.season)) {
+              toast(`"${item.title}" is coming back: ${comebackLabel(after)}`);
+            }
+          }
         } else if (
           details.release_date &&
           details.release_date !== item.lastDate
@@ -387,11 +401,18 @@ export default function App() {
   };
 
   const moveBackToWatchlist = id =>
-    updateWatch(user.uid, id, { finishedAt: null, finalRating: null });
+    updateWatch(user.uid, id, { finishedAt: null, finalRating: null, finishedSeasons: null });
+
+  // "Not watching it": treat the current seasons as the new baseline.
+  const ignoreComeback = id => {
+    const item = items.find(i => i.id === id);
+    if (item) updateWatch(user.uid, id, { finishedSeasons: item.totalSeasons });
+  };
 
   // Finished titles live in The Vault, not the watchlist.
   const activeItems = items.filter(i => !isFinished(i));
   const finishedItems = items.filter(isFinished);
+  const comebackCount = finishedItems.filter(i => vaultComeback(i)).length;
 
   // ─── Unwatched items (green glow) ─────────────────────
   const unwatchedItems = activeItems.filter(isUnwatched);
@@ -499,6 +520,7 @@ export default function App() {
         setWatchlistSearchQuery={setWatchlistSearchQuery}
         watchlistSearchResults={watchlistSearchResults}
         allItems={items}
+        vaultAlertCount={comebackCount}
       />
 
       {/* Route: New Episodes Page */}
@@ -506,6 +528,7 @@ export default function App() {
         <VaultPage
           items={finishedItems}
           onMoveBack={moveBackToWatchlist}
+          onIgnoreComeback={ignoreComeback}
           onDelete={deleteFromVault}
           onNavigateBack={() => navigate("/")}
         />
